@@ -1,37 +1,39 @@
 import { useState, useEffect, useRef } from "react";
 
+const FONT = "Arial, sans-serif";
+
 const CLIENTS = [
-  { id: 1, name: "Meridian Capital Group", matter: "SEC Regulatory Compliance", status: "active", risk: "high", jurisdiction: "Federal" },
-  { id: 2, name: "Harlow & Associates", matter: "GDPR Data Protection Audit", status: "active", risk: "medium", jurisdiction: "EU" },
-  { id: 3, name: "Vantage HealthCorp", matter: "HIPAA Privacy Compliance", status: "review", risk: "high", jurisdiction: "Federal" },
-  { id: 4, name: "Stonebridge Ventures", matter: "AML/KYC Framework Review", status: "active", risk: "low", jurisdiction: "State" },
-  { id: 5, name: "Orion Logistics Ltd", matter: "DOT Safety Regulations", status: "closed", risk: "low", jurisdiction: "Federal" },
+  { id: 1, name: "Marcus T. Williams", type: "Auto Accident", status: "active", stage: "Discovery", intake: "2026-01-12", value: "$85,000", attorney: "J. Rodriguez" },
+  { id: 2, name: "Priya Nair", type: "Slip & Fall", status: "active", stage: "Negotiation", intake: "2025-11-03", value: "$42,000", attorney: "S. Chen" },
+  { id: 3, name: "DeShawn Carter", type: "Medical Malpractice", status: "active", stage: "Filing", intake: "2026-02-01", value: "$220,000", attorney: "J. Rodriguez" },
+  { id: 4, name: "Elena Vasquez", type: "Workplace Injury", status: "settlement", stage: "Settlement", intake: "2025-09-18", value: "$67,500", attorney: "S. Chen" },
+  { id: 5, name: "Robert Kim", type: "Truck Accident", status: "active", stage: "Litigation", intake: "2025-12-22", value: "$310,000", attorney: "M. Patel" },
+  { id: 6, name: "Latasha Brown", type: "Auto Accident", status: "closed", stage: "Closed", intake: "2025-07-04", value: "$28,000", attorney: "S. Chen" },
 ];
 
 const DEADLINES = [
-  { id: 1, clientId: 1, title: "Form ADV Annual Update", date: "2026-03-15", priority: "critical", status: "pending", daysLeft: 16 },
-  { id: 2, clientId: 3, title: "HIPAA Risk Assessment Due", date: "2026-03-02", priority: "critical", status: "pending", daysLeft: 3 },
-  { id: 3, clientId: 2, title: "DPA Review Submission", date: "2026-03-20", priority: "high", status: "in-progress", daysLeft: 21 },
-  { id: 4, clientId: 4, title: "SAR Filing Window", date: "2026-04-01", priority: "medium", status: "pending", daysLeft: 33 },
-  { id: 5, clientId: 1, title: "Quarterly Compliance Report", date: "2026-04-10", priority: "medium", status: "pending", daysLeft: 42 },
-  { id: 6, clientId: 2, title: "Staff Training Certification", date: "2026-03-28", priority: "low", status: "in-progress", daysLeft: 29 },
+  { id: 1, clientId: 3, title: "Complaint Filing Deadline", date: "2026-03-02", daysLeft: 3, status: "pending", type: "court" },
+  { id: 2, clientId: 1, title: "Discovery Response Due", date: "2026-03-10", daysLeft: 11, status: "pending", type: "court" },
+  { id: 3, clientId: 5, title: "Expert Witness Disclosure", date: "2026-03-18", daysLeft: 19, status: "in-progress", type: "court" },
+  { id: 4, clientId: 2, title: "Insurance Demand Letter", date: "2026-03-25", daysLeft: 26, status: "pending", type: "internal" },
+  { id: 5, clientId: 4, title: "Settlement Agreement Review", date: "2026-03-28", daysLeft: 29, status: "in-progress", type: "internal" },
+  { id: 6, clientId: 1, title: "Deposition Scheduling", date: "2026-04-05", daysLeft: 37, status: "pending", type: "court" },
 ];
 
 const DOCUMENTS = [
-  { id: 1, clientId: 1, name: "SEC_ADV_Draft_v3.pdf", type: "Regulatory Filing", size: "2.4 MB", uploaded: "2026-02-20", status: "analyzed", summary: "Annual advisory filing with updated AUM disclosures. 3 risk flags identified in Section 7B." },
-  { id: 2, clientId: 3, name: "HIPAA_Policy_Manual.docx", type: "Policy Document", size: "1.1 MB", uploaded: "2026-02-15", status: "analyzed", summary: "PHI handling procedures compliant. Breach notification timeline requires update per 2024 OCR guidance." },
-  { id: 3, clientId: 2, name: "DPA_Agreement_Final.pdf", type: "Contract", size: "890 KB", uploaded: "2026-02-25", status: "pending", summary: null },
-  { id: 4, clientId: 4, name: "AML_Risk_Matrix.xlsx", type: "Risk Assessment", size: "340 KB", uploaded: "2026-02-18", status: "analyzed", summary: "Low-risk customer base identified. Enhanced due diligence required for 2 entity types in Schedule B." },
+  { id: 1, clientId: 1, name: "Police_Report_Williams.pdf", type: "Evidence", size: "1.2 MB", uploaded: "2026-02-10", status: "analyzed", summary: "Report confirms at-fault driver ran red light at intersection of 5th & Main. Witness statements corroborate client's account. Blood alcohol level of 0.09% noted for defendant — strengthens negligence claim under state tort law." },
+  { id: 2, clientId: 3, name: "Medical_Records_Carter.pdf", type: "Medical", size: "4.8 MB", uploaded: "2026-02-18", status: "analyzed", summary: "Records indicate misdiagnosis of appendicitis resulting in delayed treatment. Standard of care breach identifiable under JCAHO guidelines. Recommend retaining board-certified surgical expert witness for testimony." },
+  { id: 3, clientId: 5, name: "Accident_Reconstruction_Kim.pdf", type: "Expert Report", size: "2.1 MB", uploaded: "2026-02-24", status: "pending", summary: null },
+  { id: 4, clientId: 2, name: "Incident_Report_Nair.pdf", type: "Evidence", size: "890 KB", uploaded: "2026-02-20", status: "analyzed", summary: "Store's internal incident report confirms wet floor without warning signage. Report was filed 3 days post-incident, suggesting possible concealment. Preserves spoliation argument under Fed. R. Civ. P. 37." },
 ];
 
-const RISK_COLORS = { high: "#ef4444", medium: "#f59e0b", low: "#22c55e", critical: "#dc2626" };
+const STAGE_COLORS = {
+  "Intake": "#6366f1", "Discovery": "#f59e0b", "Filing": "#ef4444",
+  "Negotiation": "#8b5cf6", "Litigation": "#ef4444", "Settlement": "#22c55e", "Closed": "#4a5568",
+};
 
-const SYNE = "Arial, sans-serif";
-const MONO = "Arial, sans-serif";
-
-export default function SwanComplianceTracker() {
+export default function SwanPITracker() {
   const [activeTab, setActiveTab] = useState("dashboard");
-  const [uploadClientId, setUploadClientId] = useState(1);
   const [selectedClient, setSelectedClient] = useState(null);
   const [aiChat, setAiChat] = useState([]);
   const [aiInput, setAiInput] = useState("");
@@ -39,20 +41,24 @@ export default function SwanComplianceTracker() {
   const [uploadedDocs, setUploadedDocs] = useState(DOCUMENTS);
   const [analyzing, setAnalyzing] = useState(null);
   const [showAddDeadline, setShowAddDeadline] = useState(false);
+  const [showAddClient, setShowAddClient] = useState(false);
   const [deadlines, setDeadlines] = useState(DEADLINES);
-  const [newDeadline, setNewDeadline] = useState({ title: "", date: "", priority: "medium", clientId: 1 });
+  const [clients, setClients] = useState(CLIENTS);
+  const [newDeadline, setNewDeadline] = useState({ title: "", date: "", clientId: 1, type: "court" });
+  const [newClient, setNewClient] = useState({ name: "", type: "Auto Accident", attorney: "" });
+  const [uploadClientId, setUploadClientId] = useState(1);
   const fileInputRef = useRef();
   const chatEndRef = useRef();
 
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [aiChat]);
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [aiChat]);
+
+  const urgentCount = deadlines.filter(d => d.daysLeft <= 7).length;
+  const activeCount = clients.filter(c => c.status === "active").length;
+  const pendingDocs = uploadedDocs.filter(d => d.status === "pending").length;
+  const totalValue = clients.filter(c => c.status !== "closed" && c.value !== "TBD").reduce((sum, c) => sum + parseInt(c.value.replace(/[$,]/g, "")), 0);
 
   const filteredDeadlines = selectedClient ? deadlines.filter(d => d.clientId === selectedClient) : deadlines;
   const filteredDocs = selectedClient ? uploadedDocs.filter(d => d.clientId === selectedClient) : uploadedDocs;
-  const criticalCount = deadlines.filter(d => d.daysLeft <= 7).length;
-  const highRiskCount = CLIENTS.filter(c => c.risk === "high").length;
-  const pendingAnalysis = uploadedDocs.filter(d => d.status === "pending").length;
 
   async function sendAiMessage() {
     if (!aiInput.trim()) return;
@@ -60,7 +66,13 @@ export default function SwanComplianceTracker() {
     setAiInput("");
     setAiChat(prev => [...prev, { role: "user", content: userMsg }]);
     setAiLoading(true);
-    const context = `You are a senior legal compliance AI assistant at Swan Legal. You help attorneys track regulatory compliance, analyze documents, and research legal requirements. Current active clients: ${CLIENTS.map(c => `${c.name} (${c.matter})`).join(", ")}. Upcoming critical deadlines: ${deadlines.filter(d => d.daysLeft <= 14).map(d => `${d.title} in ${d.daysLeft} days`).join(", ")}. Be concise, precise, and cite specific regulations when relevant.`;
+    const context = `You are an AI legal assistant for a plaintiff personal injury law firm powered by Swan. Swan's mission is to make legal help accessible to the 92% of low-income households who can't afford it, by equipping PI firms with cutting-edge AI.
+
+Active PI cases: ${clients.filter(c => c.status === "active").map(c => `${c.name} (${c.type}, ${c.stage} stage, est. value ${c.value})`).join("; ")}.
+Urgent deadlines: ${deadlines.filter(d => d.daysLeft <= 14).map(d => `${d.title} in ${d.daysLeft} days for ${clients.find(c => c.id === d.clientId)?.name}`).join("; ")}.
+
+Specialties: auto accidents, slip & fall, medical malpractice, workplace injuries, truck accidents. Be direct, actionable, and reference specific tort laws, statutes of limitations, and case strategy.`;
+
     try {
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -68,7 +80,7 @@ export default function SwanComplianceTracker() {
           "Content-Type": "application/json",
           "x-api-key": import.meta.env.VITE_ANTHROPIC_API_KEY,
           "anthropic-version": "2023-06-01",
-          "anthropic-dangerous-direct-browser-access": "true",
+          "anthropic-dangerous-direct-browser-access": "true"
         },
         body: JSON.stringify({
           model: "claude-haiku-4-5-20251001",
@@ -88,6 +100,7 @@ export default function SwanComplianceTracker() {
   async function analyzeDocument(docId) {
     setAnalyzing(docId);
     const doc = uploadedDocs.find(d => d.id === docId);
+    const client = clients.find(c => c.id === doc.clientId);
     try {
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -100,7 +113,7 @@ export default function SwanComplianceTracker() {
         body: JSON.stringify({
           model: "claude-haiku-4-5-20251001",
           max_tokens: 1000,
-          messages: [{ role: "user", content: `As a compliance AI, provide a realistic mock analysis summary (2-3 sentences) for a legal document named "${doc.name}" of type "${doc.type}" for client matter "${CLIENTS.find(c => c.id === doc.clientId)?.matter}". Include specific regulatory references and actionable flags.` }]
+          messages: [{ role: "user", content: `You are a PI legal AI. Analyze this document for a plaintiff personal injury case. Provide 3-4 sentences covering: key facts, legal significance, liability indicators, and recommended next steps. Document: "${doc.name}", Type: "${doc.type}", Case: ${client?.name} - ${client?.type}. Be specific about legal strategy implications.` }]
         })
       });
       const data = await res.json();
@@ -115,216 +128,118 @@ export default function SwanComplianceTracker() {
     const file = e.target.files[0];
     if (!file) return;
     setUploadedDocs(prev => [...prev, {
-      id: Date.now(),
-      clientId: uploadClientId,
-      name: file.name,
-      type: "Uploaded Document",
-      size: `${(file.size / 1024).toFixed(0)} KB`,
+      id: Date.now(), clientId: uploadClientId, name: file.name,
+      type: "Uploaded Document", size: `${(file.size / 1024).toFixed(0)} KB`,
       uploaded: new Date().toISOString().split("T")[0],
-      status: "pending",
-      userUploaded: true,
-      summary: null
+      status: "pending", userUploaded: true, summary: null
     }]);
+    e.target.value = "";
   }
 
   function addDeadline() {
     if (!newDeadline.title || !newDeadline.date) return;
-    const daysLeft = Math.ceil((new Date(newDeadline.date) - new Date("2026-02-27")) / (1000 * 60 * 60 * 24));
+    const daysLeft = Math.ceil((new Date(newDeadline.date) - new Date()) / (1000 * 60 * 60 * 24));
     setDeadlines(prev => [...prev, { ...newDeadline, id: Date.now(), status: "pending", daysLeft }]);
-    setNewDeadline({ title: "", date: "", priority: "medium", clientId: 1 });
+    setNewDeadline({ title: "", date: "", clientId: 1, type: "court" });
     setShowAddDeadline(false);
   }
 
-  const tabs = ["dashboard", "clients", "deadlines", "documents", "ai-research"];
-  const tabLabels = { dashboard: "Dashboard", clients: "Clients & Matters", deadlines: "Deadlines", documents: "Documents", "ai-research": "AI Research" };
-  const tabIcons = { dashboard: "⬡", clients: "◈", deadlines: "◷", documents: "◻", "ai-research": "✦" };
+  function addClient() {
+    if (!newClient.name) return;
+    setClients(prev => [...prev, {
+      ...newClient, id: Date.now(), status: "active", stage: "Intake",
+      intake: new Date().toISOString().split("T")[0], value: "TBD"
+    }]);
+    setNewClient({ name: "", type: "Auto Accident", attorney: "" });
+    setShowAddClient(false);
+  }
 
   function renderMarkdown(text) {
-    return text
-      .split('\n')
-      .map((line, i) => {
-        // Headings
-        if (line.startsWith('### ')) return <div key={i} style={{ fontWeight: 700, fontSize: 13, color: "#c8a96e", marginTop: 14, marginBottom: 4 }}>{line.replace('### ', '')}</div>;
-        if (line.startsWith('## ')) return <div key={i} style={{ fontWeight: 700, fontSize: 14, color: "#e2e8f0", marginTop: 18, marginBottom: 6, borderBottom: "1px solid #1e2330", paddingBottom: 4 }}>{line.replace('## ', '')}</div>;
-        if (line.startsWith('# ')) return <div key={i} style={{ fontWeight: 800, fontSize: 16, color: "#e2e8f0", marginTop: 20, marginBottom: 8 }}>{line.replace('# ', '')}</div>;
-        // Bullet points
-        if (line.startsWith('- **') || line.startsWith('- ')) {
-          const content = line.replace(/^- \*\*(.*?)\*\*/, (_, m) => m).replace(/^- /, '');
-          const isBold = line.startsWith('- **');
-          return <div key={i} style={{ display: "flex", gap: 8, marginBottom: 3 }}><span style={{ color: "#c8a96e", flexShrink: 0 }}>·</span><span style={{ fontWeight: isBold ? 600 : 400 }}>{content.replace(/\*\*(.*?)\*\*/g, '$1')}</span></div>;
-        }
-        // Horizontal rule
-        if (line.startsWith('---')) return <div key={i} style={{ borderBottom: "1px solid #1e2330", margin: "12px 0" }} />;
-        // Bold inline
-        if (line.includes('**')) {
-          const parts = line.split(/\*\*(.*?)\*\*/g);
-          return <div key={i} style={{ marginBottom: 3 }}>{parts.map((p, j) => j % 2 === 1 ? <strong key={j} style={{ color: "#e2e8f0" }}>{p}</strong> : p)}</div>;
-        }
-        // Empty line
-        if (line.trim() === '') return <div key={i} style={{ height: 6 }} />;
-        // Normal line
-        return <div key={i} style={{ marginBottom: 3, color: "#cbd5e0" }}>{line}</div>;
-      });
-    }
+    if (!text) return null;
+    return text.split('\n').map((line, i) => {
+      if (line.startsWith('### ')) return <div key={i} style={{ fontWeight: 700, fontSize: 13, color: "#c8a96e", marginTop: 14, marginBottom: 4, fontFamily: FONT }}>{line.replace('### ', '')}</div>;
+      if (line.startsWith('## ')) return <div key={i} style={{ fontWeight: 700, fontSize: 14, color: "#e2e8f0", marginTop: 18, marginBottom: 6, borderBottom: "1px solid #1e2330", paddingBottom: 4, fontFamily: FONT }}>{line.replace('## ', '')}</div>;
+      if (line.startsWith('# ')) return <div key={i} style={{ fontWeight: 800, fontSize: 16, color: "#e2e8f0", marginTop: 20, marginBottom: 8, fontFamily: FONT }}>{line.replace('# ', '')}</div>;
+      if (line.startsWith('- ')) {
+        const content = line.replace(/^- \*\*(.*?)\*\*/, '$1').replace(/^- /, '');
+        return <div key={i} style={{ display: "flex", gap: 8, marginBottom: 4, fontFamily: FONT }}><span style={{ color: "#c8a96e", flexShrink: 0 }}>·</span><span>{content.replace(/\*\*(.*?)\*\*/g, '$1')}</span></div>;
+      }
+      if (line.startsWith('---')) return <div key={i} style={{ borderBottom: "1px solid #1e2330", margin: "12px 0" }} />;
+      if (line.includes('**')) {
+        const parts = line.split(/\*\*(.*?)\*\*/g);
+        return <div key={i} style={{ marginBottom: 4, fontFamily: FONT }}>{parts.map((p, j) => j % 2 === 1 ? <strong key={j} style={{ color: "#e2e8f0" }}>{p}</strong> : p)}</div>;
+      }
+      if (line.trim() === '') return <div key={i} style={{ height: 8 }} />;
+      return <div key={i} style={{ marginBottom: 4, color: "#cbd5e0", fontFamily: FONT, lineHeight: 1.6 }}>{line}</div>;
+    });
+  }
+
+  const tabs = ["dashboard", "cases", "deadlines", "documents", "ai-assistant"];
+  const tabLabels = { dashboard: "Dashboard", cases: "Cases", deadlines: "Deadlines", documents: "Documents", "ai-assistant": "AI Assistant" };
+  const tabIcons = { dashboard: "◈", cases: "◉", deadlines: "◷", documents: "◻", "ai-assistant": "✦" };
 
   return (
-    <div style={{ fontFamily: MONO, background: "#0a0c10", minHeight: "100vh", color: "#e2e8f0" }}>
+    <div style={{ fontFamily: FONT, background: "#0a0c10", minHeight: "100vh", color: "#e2e8f0" }}>
       <style>{`
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: #0a0c10; }
-        ::-webkit-scrollbar-thumb { background: #2a3040; border-radius: 2px; }
-
-        .tab-btn {
-          background: none; border: none; cursor: pointer; color: #4a5568;
-          font-family: Arial, sans-serif; font-size: 11px; letter-spacing: 0.1em;
-          padding: 10px 16px; transition: all 0.2s; text-transform: uppercase;
-          border-bottom: 1px solid transparent;
-        }
+        ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: #0a0c10; } ::-webkit-scrollbar-thumb { background: #2a3040; border-radius: 2px; }
+        .tab-btn { background: none; border: none; border-bottom: 1px solid transparent; cursor: pointer; color: #4a5568; font-family: Arial, sans-serif; font-size: 11px; letter-spacing: 0.08em; padding: 12px 18px; transition: all 0.2s; text-transform: uppercase; font-weight: 600; }
         .tab-btn.active { color: #c8a96e; border-bottom: 1px solid #c8a96e; }
         .tab-btn:hover { color: #94a3b8; }
-
         .card { background: #111318; border: 1px solid #1e2330; border-radius: 8px; padding: 20px; }
-        .tag { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-family: Arial, sans-serif; }
-
-        .btn {
-          background: #c8a96e; color: #0a0c10; border: none; border-radius: 4px;
-          padding: 8px 16px; font-family: Arial, sans-serif; font-size: 11px;
-          cursor: pointer; letter-spacing: 0.05em; font-weight: 500; transition: all 0.2s;
-          white-space: nowrap;
-        }
+        .tag { display: inline-block; padding: 3px 8px; border-radius: 3px; font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; font-family: Arial, sans-serif; }
+        .btn { background: #c8a96e; color: #0a0c10; border: none; border-radius: 4px; padding: 9px 18px; font-family: Arial, sans-serif; font-size: 12px; cursor: pointer; font-weight: 700; transition: all 0.2s; white-space: nowrap; }
         .btn:hover { background: #d4b97e; }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-        .btn-outline {
-          background: transparent; color: #c8a96e; border: 1px solid #c8a96e;
-          border-radius: 4px; padding: 6px 14px; font-family: Arial, sans-serif;
-          font-size: 11px; cursor: pointer; letter-spacing: 0.05em; transition: all 0.2s;
-        }
-        .btn-outline:hover { background: rgba(200,169,110,0.1); }
-
-        input, select, textarea {
-          background: #0d0f15; border: 1px solid #1e2330; border-radius: 4px;
-          color: #e2e8f0; font-family: Arial, sans-serif; font-size: 12px;
-          padding: 8px 12px; width: 100%; outline: none; transition: border 0.2s;
-        }
-        input:focus, select:focus, textarea:focus { border-color: rgba(200,169,110,0.3); }
+        .btn-outline { background: transparent; color: #c8a96e; border: 1px solid #c8a96e; border-radius: 4px; padding: 7px 16px; font-family: Arial, sans-serif; font-size: 12px; cursor: pointer; font-weight: 600; transition: all 0.2s; }
+        .btn-outline:hover { background: rgba(200,169,110,0.08); }
+        .btn-ghost { background: transparent; color: #64748b; border: 1px solid #1e2330; border-radius: 4px; padding: 7px 14px; font-family: Arial, sans-serif; font-size: 11px; cursor: pointer; transition: all 0.2s; }
+        .btn-ghost:hover { border-color: #2a3040; color: #94a3b8; }
+        input, select, textarea { background: #0d0f15; border: 1px solid #1e2330; border-radius: 4px; color: #e2e8f0; font-family: Arial, sans-serif; font-size: 12px; padding: 9px 12px; width: 100%; outline: none; transition: border 0.2s; }
+        input:focus, select:focus, textarea:focus { border-color: rgba(200,169,110,0.35); }
         select option { background: #111318; }
-
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
         .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+        .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 14px; }
         .row { display: flex; align-items: center; gap: 12px; }
-
-        .stat-num {
-          font-family: Arial, sans-serif !important;
-          font-size: 36px !important;
-          font-weight: 800 !important;
-          line-height: 1 !important;
-          letter-spacing: -0.02em !important;
-          color: #c8a96e;
-        }
-
-        .section-title {
-          font-family: Arial, sans-serif;
-          font-size: 10px;
-          font-weight: 500;
-          text-transform: uppercase;
-          letter-spacing: 0.14em;
-          color: #4a5568;
-          margin-bottom: 14px;
-        }
-
-        .page-title {
-          font-family: Arial, sans-serif !important;
-          font-size: 26px !important;
-          font-weight: 800 !important;
-          line-height: 1.1 !important;
-          letter-spacing: -0.01em !important;
-          color: #e2e8f0;
-        }
-
-        .client-row {
-          padding: 14px 16px; border: 1px solid #1e2330; border-radius: 6px;
-          cursor: pointer; transition: all 0.2s; margin-bottom: 8px; background: #0d0f15;
-        }
-        .client-row:hover, .client-row.selected { border-color: rgba(200,169,110,0.3); background: #111318; }
-
-        .deadline-row {
-          padding: 14px 16px; border-left: 3px solid; border-radius: 0 6px 6px 0;
-          background: #0d0f15; margin-bottom: 8px; transition: background 0.2s;
-        }
+        .case-row { padding: 16px; border: 1px solid #1e2330; border-radius: 6px; cursor: pointer; transition: all 0.2s; margin-bottom: 8px; background: #0d0f15; }
+        .case-row:hover, .case-row.selected { border-color: rgba(200,169,110,0.3); background: #111318; }
+        .deadline-row { padding: 14px 16px; border-left: 3px solid; border-radius: 0 6px 6px 0; background: #0d0f15; margin-bottom: 8px; transition: background 0.2s; }
         .deadline-row:hover { background: #111318; }
-
-        .doc-row { padding: 14px 16px; border: 1px solid #1e2330; border-radius: 6px; margin-bottom: 8px; background: #0d0f15; }
-
-        .chat-bubble-user {
-          background: #1a2035; border-radius: 8px 8px 2px 8px;
-          padding: 10px 14px; max-width: 75%; margin-left: auto;
-          font-size: 12px; line-height: 1.6; font-family: Arial, sans-serif;
-        }
-        .chat-bubble-ai {
-          background: #111318; border: 1px solid #1e2330;
-          border-radius: 8px 8px 8px 2px; padding: 10px 14px;
-          max-width: 85%; font-size: 12px; line-height: 1.6; color: #cbd5e0;
-          font-family: Arial, sans-serif;
-        }
-
+        .doc-row { padding: 14px 16px; border: 1px solid #1e2330; border-radius: 6px; margin-bottom: 10px; background: #0d0f15; }
+        .chat-bubble-user { background: #1a2035; border-radius: 8px 8px 2px 8px; padding: 10px 14px; max-width: 75%; margin-left: auto; font-size: 12px; line-height: 1.6; font-family: Arial, sans-serif; }
+        .chat-bubble-ai { background: #111318; border: 1px solid #1e2330; border-radius: 8px 8px 8px 2px; padding: 12px 16px; max-width: 88%; font-size: 12px; line-height: 1.6; color: #cbd5e0; font-family: Arial, sans-serif; }
         .pulse { animation: pulse 2s infinite; }
         @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
-
-        .shimmer {
-          background: linear-gradient(90deg, #1e2330 25%, #252b3b 50%, #1e2330 75%);
-          background-size: 200%; animation: shimmer 1.5s infinite;
-          border-radius: 4px; height: 12px;
-        }
+        .shimmer { background: linear-gradient(90deg, #1e2330 25%, #252b3b 50%, #1e2330 75%); background-size: 200%; animation: shimmer 1.5s infinite; border-radius: 4px; height: 12px; }
         @keyframes shimmer { 0% { background-position: 200%; } 100% { background-position: -200%; } }
-
-        .modal-overlay {
-          position: fixed; inset: 0; background: rgba(0,0,0,0.6);
-          display: flex; align-items: center; justify-content: center; z-index: 100;
-        }
-        .modal { background: #111318; border: 1px solid #2a3040; border-radius: 10px; padding: 28px; width: 420px; }
-
-        .deadline-days {
-          font-family: Arial, sans-serif !important;
-          font-weight: 800 !important;
-          line-height: 1 !important;
-          letter-spacing: -0.02em !important;
-        }
-
-        .logo-text {
-          font-family: Arial, sans-serif !important;
-          font-weight: 800 !important;
-          font-size: 16px !important;
-          letter-spacing: 0.05em !important;
-          color: #c8a96e;
-        }
-
-        .client-name {
-          font-family: Arial, sans-serif !important;
-          font-weight: 700 !important;
-          font-size: 14px !important;
-          color: #e2e8f0;
-          letter-spacing: 0 !important;
-        }
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.65); display: flex; align-items: center; justify-content: center; z-index: 100; }
+        .modal { background: #111318; border: 1px solid #2a3040; border-radius: 10px; padding: 28px; width: 440px; }
       `}</style>
 
       {/* Header */}
-      <div style={{ borderBottom: "1px solid #1e2330", padding: "0 60px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 56 }}>
+      <div style={{ borderBottom: "1px solid #1e2330", padding: "0 60px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 58 }}>
         <div className="row" style={{ gap: 16 }}>
-          <div className="logo-text">
-            SWANS <span style={{ color: "#4a5568", fontWeight: 400, fontFamily: MONO }}>/</span> <span style={{ color: "#94a3b8", fontSize: 13, fontWeight: 600, fontFamily: SYNE }}>COMPLIANCE</span>
-          </div>
-          <div style={{ width: 1, height: 20, background: "#1e2330" }} />
-          <div style={{ fontSize: 10, color: "#4a5568", letterSpacing: "0.1em", fontFamily: MONO }}>LEGAL INTELLIGENCE PLATFORM</div>
+          <div style={{ fontWeight: 800, fontSize: 15, letterSpacing: "0.06em", color: "#c8a96e" }}>SWANS</div>
+          <div style={{ width: 1, height: 18, background: "#2a3040" }} />
+          <div style={{ fontSize: 12, color: "#64748b", fontWeight: 600, letterSpacing: "0.05em" }}>PI CASE MANAGER</div>
+          <div style={{ width: 1, height: 18, background: "#2a3040" }} />
+          <div style={{ fontSize: 10, color: "#2a3040", letterSpacing: "0.1em" }}>BRUTE FORCE INNOVATION INTO LAW</div>
         </div>
-        <div className="row" style={{ gap: 8 }}>
-          {criticalCount > 0 && (
-            <div style={{ background: "rgba(220,38,38,0.1)", border: "1px solid rgba(220,38,38,0.2)", borderRadius: 4, padding: "4px 10px", fontSize: 10, color: "#ef4444", letterSpacing: "0.08em", fontFamily: MONO }}>
-              ⚠ {criticalCount} CRITICAL DEADLINE{criticalCount > 1 ? "S" : ""}
+        <div className="row" style={{ gap: 10 }}>
+          {urgentCount > 0 && (
+            <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 4, padding: "5px 12px", fontSize: 11, color: "#ef4444", fontWeight: 700, letterSpacing: "0.06em" }}>
+              ⚠ {urgentCount} URGENT DEADLINE{urgentCount > 1 ? "S" : ""}
             </div>
           )}
-          <div style={{ fontSize: 10, color: "#4a5568", fontFamily: MONO }}>FEB 27, 2026</div>
+          <div style={{ fontSize: 11, color: "#374151" }}>FEB 28, 2026</div>
+        </div>
+      </div>
+
+      {/* Mission bar */}
+      <div style={{ background: "#0d0f15", borderBottom: "1px solid #161a24", padding: "7px 60px" }}>
+        <div style={{ fontSize: 10, color: "#2d3748", letterSpacing: "0.08em" }}>
+          MISSION: 92% of low-income households can't afford legal help — Swan equips PI firms with AI to change that
         </div>
       </div>
 
@@ -338,150 +253,158 @@ export default function SwanComplianceTracker() {
       </div>
 
       {/* Content */}
-      <div style={{ padding: "40px 60px", maxWidth: 1400, margin: "0 auto" }}>
+      <div style={{ padding: "36px 60px", maxWidth: 1400, margin: "0 auto" }}>
 
         {/* DASHBOARD */}
         {activeTab === "dashboard" && (
           <div>
             <div style={{ marginBottom: 28 }}>
-              <div className="page-title" style={{ marginBottom: 4 }}>Compliance Overview</div>
-              <div style={{ fontSize: 11, color: "#4a5568", letterSpacing: "0.08em", fontFamily: MONO }}>ALL ACTIVE MATTERS · Q1 2026</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: "#e2e8f0", marginBottom: 4 }}>Case Overview</div>
+              <div style={{ fontSize: 12, color: "#4a5568" }}>Plaintiff personal injury — all active matters</div>
             </div>
 
-            <div className="grid-3" style={{ marginBottom: 24 }}>
+            <div className="grid-4" style={{ marginBottom: 24 }}>
               {[
-                { label: "Active Clients", val: CLIENTS.filter(c => c.status === "active").length, sub: `${CLIENTS.length} total matters`, accent: "#c8a96e" },
-                { label: "Critical Deadlines", val: criticalCount, sub: "Due within 7 days", accent: "#ef4444" },
-                { label: "High Risk Matters", val: highRiskCount, sub: "Require immediate attention", accent: "#f59e0b" },
+                { label: "Active Cases", val: activeCount, sub: `${clients.length} total clients`, color: "#c8a96e" },
+                { label: "Urgent Deadlines", val: urgentCount, sub: "Due within 7 days", color: "#ef4444" },
+                { label: "Pipeline Value", val: `$${(totalValue / 1000).toFixed(0)}K`, sub: "Estimated settlements", color: "#22c55e" },
+                { label: "Docs to Review", val: pendingDocs, sub: "Awaiting AI analysis", color: "#8b5cf6" },
               ].map(s => (
-                <div key={s.label} className="card" style={{ borderColor: s.accent + "33" }}>
-                  <div style={{ fontSize: 10, color: "#4a5568", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10, fontFamily: MONO }}>{s.label}</div>
-                  <div className="stat-num" style={{ color: s.accent, marginBottom: 6 }}>{s.val}</div>
-                  <div style={{ fontSize: 11, color: "#4a5568", fontFamily: MONO }}>{s.sub}</div>
+                <div key={s.label} className="card" style={{ borderColor: s.color + "22" }}>
+                  <div style={{ fontSize: 10, color: "#4a5568", letterSpacing: "0.1em", textTransform: "uppercase" }}>{s.label}</div>
+                  <div style={{ fontSize: 32, fontWeight: 800, color: s.color, lineHeight: 1, margin: "8px 0 4px" }}>{s.val}</div>
+                  <div style={{ fontSize: 11, color: "#4a5568" }}>{s.sub}</div>
                 </div>
               ))}
             </div>
 
-            <div className="grid-2">
+            <div className="grid-2" style={{ marginBottom: 16 }}>
               <div className="card">
-                <div className="section-title">Upcoming Deadlines</div>
-                {[...deadlines].sort((a, b) => a.daysLeft - b.daysLeft).slice(0, 4).map(d => {
-                  const client = CLIENTS.find(c => c.id === d.clientId);
+                <div style={{ fontSize: 10, color: "#4a5568", letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 600, marginBottom: 14 }}>Urgent Deadlines</div>
+                {[...deadlines].sort((a, b) => a.daysLeft - b.daysLeft).slice(0, 5).map(d => {
+                  const client = clients.find(c => c.id === d.clientId);
                   const color = d.daysLeft <= 7 ? "#ef4444" : d.daysLeft <= 21 ? "#f59e0b" : "#22c55e";
                   return (
-                    <div key={d.id} className="deadline-row" style={{ borderLeftColor: color, marginBottom: 8 }}>
+                    <div key={d.id} className="deadline-row" style={{ borderLeftColor: color }}>
                       <div className="row" style={{ justifyContent: "space-between" }}>
                         <div>
-                          <div style={{ fontSize: 12, fontWeight: 500, color: "#e2e8f0", marginBottom: 2, fontFamily: MONO }}>{d.title}</div>
-                          <div style={{ fontSize: 10, color: "#4a5568", fontFamily: MONO }}>{client?.name}</div>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: "#e2e8f0", marginBottom: 2 }}>{d.title}</div>
+                          <div style={{ fontSize: 11, color: "#4a5568" }}>{client?.name} · {d.type}</div>
                         </div>
                         <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 12 }}>
-                          <div className="deadline-days" style={{ fontSize: 20, color }}>{d.daysLeft}d</div>
-                          <div style={{ fontSize: 9, color: "#4a5568", fontFamily: MONO }}>{d.date}</div>
+                          <div style={{ fontSize: 20, fontWeight: 800, color, lineHeight: 1 }}>{d.daysLeft}d</div>
+                          <div style={{ fontSize: 9, color: "#4a5568" }}>{d.date}</div>
                         </div>
                       </div>
                     </div>
                   );
                 })}
-                <button className="btn-outline" style={{ width: "100%", marginTop: 8 }} onClick={() => setActiveTab("deadlines")}>View All Deadlines →</button>
+                <button className="btn-outline" style={{ width: "100%", marginTop: 10 }} onClick={() => setActiveTab("deadlines")}>View All →</button>
               </div>
 
               <div className="card">
-                <div className="section-title">Client Risk Matrix</div>
-                {CLIENTS.map(c => (
+                <div style={{ fontSize: 10, color: "#4a5568", letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 600, marginBottom: 14 }}>Case Pipeline</div>
+                {clients.filter(c => c.status !== "closed").map(c => (
                   <div key={c.id} className="row" style={{ justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #1e2330" }}>
                     <div>
-                      <div style={{ fontSize: 12, color: "#e2e8f0", fontFamily: MONO, marginBottom: 2 }}>{c.name}</div>
-                      <div style={{ fontSize: 10, color: "#4a5568", fontFamily: MONO }}>{c.matter}</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: "#e2e8f0", marginBottom: 2 }}>{c.name}</div>
+                      <div style={{ fontSize: 11, color: "#4a5568" }}>{c.type} · {c.attorney}</div>
                     </div>
-                    <div className="row" style={{ gap: 6, flexShrink: 0 }}>
-                      <span className="tag" style={{ background: RISK_COLORS[c.risk] + "22", color: RISK_COLORS[c.risk] }}>{c.risk}</span>
-                      <span className="tag" style={{ background: "#1e2330", color: "#94a3b8" }}>{c.status}</span>
+                    <div className="row" style={{ gap: 8, flexShrink: 0 }}>
+                      <span className="tag" style={{ background: (STAGE_COLORS[c.stage] || "#4a5568") + "22", color: STAGE_COLORS[c.stage] || "#94a3b8" }}>{c.stage}</span>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#22c55e" }}>{c.value}</div>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="card" style={{ marginTop: 16 }}>
-              <div className="section-title">Recently Analyzed Documents</div>
+            <div className="card">
+              <div style={{ fontSize: 10, color: "#4a5568", letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 600, marginBottom: 14 }}>Recent Document Analysis</div>
               <div className="grid-2">
-                {uploadedDocs.filter(d => d.status === "analyzed").slice(0, 2).map(doc => (
-                  <div key={doc.id} style={{ padding: 14, background: "#0d0f15", border: "1px solid #1e2330", borderRadius: 6 }}>
-                    <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
-                      <div style={{ fontSize: 12, color: "#c8a96e", fontFamily: MONO }}>◻ {doc.name}</div>
-                      <span className="tag" style={{ background: "#22c55e22", color: "#22c55e" }}>analyzed</span>
+                {uploadedDocs.filter(d => d.status === "analyzed").slice(0, 2).map(doc => {
+                  const client = clients.find(c => c.id === doc.clientId);
+                  return (
+                    <div key={doc.id} style={{ padding: 14, background: "#0d0f15", border: "1px solid #1e2330", borderRadius: 6 }}>
+                      <div className="row" style={{ justifyContent: "space-between", marginBottom: 6 }}>
+                        <div style={{ fontSize: 12, color: "#c8a96e", fontWeight: 600 }}>◻ {doc.name}</div>
+                        <span className="tag" style={{ background: "#22c55e22", color: "#22c55e", flexShrink: 0 }}>analyzed</span>
+                      </div>
+                      <div style={{ fontSize: 10, color: "#4a5568", marginBottom: 8 }}>{client?.name} · {doc.type}</div>
+                      <div style={{ fontSize: 11, color: "#64748b", lineHeight: 1.6 }}>{doc.summary?.slice(0, 130)}...</div>
                     </div>
-                    <div style={{ fontSize: 11, color: "#64748b", lineHeight: 1.6, fontFamily: MONO }}>{doc.summary}</div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
         )}
 
-        {/* CLIENTS */}
-        {activeTab === "clients" && (
+        {/* CASES */}
+        {activeTab === "cases" && (
           <div>
             <div className="row" style={{ justifyContent: "space-between", marginBottom: 28 }}>
               <div>
-                <div className="page-title" style={{ marginBottom: 4 }}>Clients & Matters</div>
-                <div style={{ fontSize: 11, color: "#4a5568", fontFamily: MONO }}>{CLIENTS.length} matters · click to filter</div>
+                <div style={{ fontSize: 24, fontWeight: 800, color: "#e2e8f0", marginBottom: 4 }}>Cases</div>
+                <div style={{ fontSize: 12, color: "#4a5568" }}>{clients.length} total · {activeCount} active</div>
               </div>
-              {selectedClient && <button className="btn-outline" onClick={() => setSelectedClient(null)}>✕ Clear Filter</button>}
+              <div className="row" style={{ gap: 8 }}>
+                {selectedClient && <button className="btn-ghost" onClick={() => setSelectedClient(null)}>✕ Clear</button>}
+                <button className="btn" onClick={() => setShowAddClient(true)}>+ New Case</button>
+              </div>
             </div>
 
-            <div style={{ marginBottom: 20 }}>
-              {CLIENTS.map(c => (
-                <div key={c.id} className={`client-row ${selectedClient === c.id ? "selected" : ""}`} onClick={() => setSelectedClient(selectedClient === c.id ? null : c.id)}>
-                  <div className="row" style={{ justifyContent: "space-between" }}>
-                    <div>
-                      <div className="row" style={{ marginBottom: 6, gap: 10 }}>
-                        <div className="client-name">{c.name}</div>
-                        <span className="tag" style={{ background: RISK_COLORS[c.risk] + "22", color: RISK_COLORS[c.risk] }}>{c.risk} risk</span>
-                        <span className="tag" style={{ background: "#1e2330", color: "#94a3b8" }}>{c.status}</span>
-                      </div>
-                      <div style={{ fontSize: 11, color: "#64748b", fontFamily: MONO }}>{c.matter} · {c.jurisdiction}</div>
+            {clients.map(c => (
+              <div key={c.id} className={`case-row ${selectedClient === c.id ? "selected" : ""}`} onClick={() => setSelectedClient(selectedClient === c.id ? null : c.id)}>
+                <div className="row" style={{ justifyContent: "space-between" }}>
+                  <div>
+                    <div className="row" style={{ marginBottom: 6, gap: 10 }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: "#e2e8f0" }}>{c.name}</div>
+                      <span className="tag" style={{ background: (STAGE_COLORS[c.stage] || "#4a5568") + "22", color: STAGE_COLORS[c.stage] || "#94a3b8" }}>{c.stage}</span>
+                      <span className="tag" style={{ background: "#1e2330", color: "#64748b" }}>{c.type}</span>
                     </div>
-                    <div style={{ textAlign: "right", flexShrink: 0 }}>
-                      <div style={{ fontSize: 11, color: "#4a5568", fontFamily: MONO }}>{deadlines.filter(d => d.clientId === c.id).length} deadline(s)</div>
-                      <div style={{ fontSize: 11, color: "#4a5568", fontFamily: MONO }}>{uploadedDocs.filter(d => d.clientId === c.id).length} document(s)</div>
-                    </div>
+                    <div style={{ fontSize: 11, color: "#4a5568" }}>Attorney: {c.attorney} · Intake: {c.intake} · Est. Value: <span style={{ color: "#22c55e", fontWeight: 600 }}>{c.value}</span></div>
+                  </div>
+                  <div style={{ textAlign: "right", flexShrink: 0 }}>
+                    <div style={{ fontSize: 11, color: "#4a5568" }}>{deadlines.filter(d => d.clientId === c.id).length} deadline(s)</div>
+                    <div style={{ fontSize: 11, color: "#4a5568" }}>{uploadedDocs.filter(d => d.clientId === c.id).length} doc(s)</div>
                   </div>
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
 
             {selectedClient && (
-              <div className="grid-2">
+              <div className="grid-2" style={{ marginTop: 16 }}>
                 <div className="card">
-                  <div className="section-title">Active Deadlines</div>
+                  <div style={{ fontSize: 10, color: "#4a5568", letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 600, marginBottom: 14 }}>Case Deadlines</div>
                   {filteredDeadlines.length === 0
-                    ? <div style={{ fontSize: 12, color: "#4a5568", fontFamily: MONO }}>No deadlines for this client.</div>
+                    ? <div style={{ fontSize: 12, color: "#4a5568" }}>No deadlines for this case.</div>
                     : filteredDeadlines.map(d => {
                       const color = d.daysLeft <= 7 ? "#ef4444" : d.daysLeft <= 21 ? "#f59e0b" : "#22c55e";
                       return (
                         <div key={d.id} className="deadline-row" style={{ borderLeftColor: color }}>
                           <div className="row" style={{ justifyContent: "space-between" }}>
-                            <div style={{ fontSize: 12, color: "#e2e8f0", fontFamily: MONO }}>{d.title}</div>
-                            <div className="deadline-days" style={{ fontSize: 18, color, flexShrink: 0, marginLeft: 12 }}>{d.daysLeft}d</div>
+                            <div>
+                              <div style={{ fontSize: 12, fontWeight: 600, color: "#e2e8f0" }}>{d.title}</div>
+                              <div style={{ fontSize: 10, color: "#4a5568", marginTop: 2 }}>{d.date} · {d.type}</div>
+                            </div>
+                            <div style={{ fontSize: 18, fontWeight: 800, color, flexShrink: 0, marginLeft: 12 }}>{d.daysLeft}d</div>
                           </div>
-                          <div style={{ fontSize: 10, color: "#4a5568", marginTop: 4, fontFamily: MONO }}>{d.date} · {d.status}</div>
                         </div>
                       );
                     })}
                 </div>
                 <div className="card">
-                  <div className="section-title">Documents</div>
+                  <div style={{ fontSize: 10, color: "#4a5568", letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 600, marginBottom: 14 }}>Case Documents</div>
                   {filteredDocs.length === 0
-                    ? <div style={{ fontSize: 12, color: "#4a5568", fontFamily: MONO }}>No documents uploaded.</div>
+                    ? <div style={{ fontSize: 12, color: "#4a5568" }}>No documents uploaded.</div>
                     : filteredDocs.map(doc => (
                       <div key={doc.id} style={{ padding: "10px 0", borderBottom: "1px solid #1e2330" }}>
                         <div className="row" style={{ justifyContent: "space-between" }}>
-                          <div style={{ fontSize: 12, color: "#c8a96e", fontFamily: MONO }}>◻ {doc.name}</div>
-                          <span className="tag" style={{ background: doc.status === "analyzed" ? "#22c55e22" : "#f59e0b22", color: doc.status === "analyzed" ? "#22c55e" : "#f59e0b" }}>{doc.status}</span>
+                          <div style={{ fontSize: 12, color: "#c8a96e" }}>◻ {doc.name}</div>
+                          <span className="tag" style={{ background: doc.status === "analyzed" ? "#22c55e22" : "#f59e0b22", color: doc.status === "analyzed" ? "#22c55e" : "#f59e0b", flexShrink: 0 }}>{doc.status}</span>
                         </div>
-                        <div style={{ fontSize: 10, color: "#4a5568", marginTop: 4, fontFamily: MONO }}>{doc.type} · {doc.size}</div>
+                        <div style={{ fontSize: 10, color: "#4a5568", marginTop: 3 }}>{doc.type} · {doc.size}</div>
                       </div>
                     ))}
                 </div>
@@ -495,42 +418,40 @@ export default function SwanComplianceTracker() {
           <div>
             <div className="row" style={{ justifyContent: "space-between", marginBottom: 28 }}>
               <div>
-                <div className="page-title" style={{ marginBottom: 4 }}>Compliance Deadlines</div>
-                <div style={{ fontSize: 11, color: "#4a5568", fontFamily: MONO }}>{deadlines.length} tracked obligations</div>
+                <div style={{ fontSize: 24, fontWeight: 800, color: "#e2e8f0", marginBottom: 4 }}>Deadlines</div>
+                <div style={{ fontSize: 12, color: "#4a5568" }}>{deadlines.length} tracked obligations</div>
               </div>
               <button className="btn" onClick={() => setShowAddDeadline(true)}>+ Add Deadline</button>
             </div>
 
-            {["critical", "high", "medium", "low"].map(prio => {
-              const items = deadlines.filter(d => {
-                if (prio === "critical") return d.daysLeft <= 7;
-                if (prio === "high") return d.daysLeft > 7 && d.daysLeft <= 21;
-                if (prio === "medium") return d.daysLeft > 21 && d.daysLeft <= 35;
-                return d.daysLeft > 35;
-              });
-              if (items.length === 0) return null;
-              const color = RISK_COLORS[prio];
-              const labels = { critical: "🔴 CRITICAL — Due within 7 days", high: "🟡 HIGH — Due within 3 weeks", medium: "🟢 MEDIUM — Due within 5 weeks", low: "⚪ LOW — Due later" };
+            {[
+              { label: "🔴 CRITICAL — Due within 7 days", filter: d => d.daysLeft <= 7, color: "#ef4444" },
+              { label: "🟡 HIGH — Due within 3 weeks", filter: d => d.daysLeft > 7 && d.daysLeft <= 21, color: "#f59e0b" },
+              { label: "🟢 UPCOMING — Due within 5 weeks", filter: d => d.daysLeft > 21 && d.daysLeft <= 35, color: "#22c55e" },
+              { label: "⚪ LATER — Due beyond 5 weeks", filter: d => d.daysLeft > 35, color: "#4a5568" },
+            ].map((group, gi) => {
+              const items = deadlines.filter(group.filter);
+              if (!items.length) return null;
               return (
-                <div key={prio} style={{ marginBottom: 28 }}>
-                  <div style={{ fontSize: 10, color, letterSpacing: "0.12em", marginBottom: 10, textTransform: "uppercase", fontFamily: MONO }}>{labels[prio]}</div>
+                <div key={gi} style={{ marginBottom: 28 }}>
+                  <div style={{ fontSize: 10, color: group.color, letterSpacing: "0.12em", marginBottom: 10, textTransform: "uppercase", fontWeight: 600 }}>{group.label}</div>
                   {items.map(d => {
-                    const client = CLIENTS.find(c => c.id === d.clientId);
+                    const client = clients.find(c => c.id === d.clientId);
                     return (
-                      <div key={d.id} className="deadline-row" style={{ borderLeftColor: color }}>
+                      <div key={d.id} className="deadline-row" style={{ borderLeftColor: group.color }}>
                         <div className="row" style={{ justifyContent: "space-between" }}>
                           <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: 13, fontWeight: 500, color: "#e2e8f0", marginBottom: 4, fontFamily: MONO }}>{d.title}</div>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0", marginBottom: 4 }}>{d.title}</div>
                             <div className="row" style={{ gap: 8 }}>
-                              <span style={{ fontSize: 10, color: "#4a5568", fontFamily: MONO }}>{client?.name}</span>
-                              <span className="tag" style={{ background: "#1e2330", color: "#94a3b8" }}>{d.status}</span>
-                              <span style={{ fontSize: 10, color: "#4a5568", fontFamily: MONO }}>{client?.jurisdiction}</span>
+                              <span style={{ fontSize: 11, color: "#4a5568" }}>{client?.name}</span>
+                              <span className="tag" style={{ background: "#1e2330", color: "#64748b" }}>{d.status}</span>
+                              <span className="tag" style={{ background: d.type === "court" ? "#ef444422" : "#6366f122", color: d.type === "court" ? "#ef4444" : "#818cf8" }}>{d.type}</span>
                             </div>
                           </div>
                           <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 16 }}>
-                            <div className="deadline-days" style={{ fontSize: 28, color }}>{d.daysLeft}</div>
-                            <div style={{ fontSize: 9, color: "#4a5568", textTransform: "uppercase", fontFamily: MONO }}>days left</div>
-                            <div style={{ fontSize: 9, color: "#4a5568", fontFamily: MONO }}>{d.date}</div>
+                            <div style={{ fontSize: 28, fontWeight: 800, color: group.color, lineHeight: 1 }}>{d.daysLeft}</div>
+                            <div style={{ fontSize: 9, color: "#4a5568", textTransform: "uppercase" }}>days left</div>
+                            <div style={{ fontSize: 10, color: "#374151" }}>{d.date}</div>
                           </div>
                         </div>
                       </div>
@@ -547,42 +468,38 @@ export default function SwanComplianceTracker() {
           <div>
             <div className="row" style={{ justifyContent: "space-between", marginBottom: 28 }}>
               <div>
-                <div className="page-title" style={{ marginBottom: 4 }}>Document Analysis</div>
-                <div style={{ fontSize: 11, color: "#4a5568", fontFamily: MONO }}>AI-powered compliance review · {uploadedDocs.length} documents</div>
+                <div style={{ fontSize: 24, fontWeight: 800, color: "#e2e8f0", marginBottom: 4 }}>Document Analysis</div>
+                <div style={{ fontSize: 12, color: "#4a5568" }}>AI-powered case document review · {uploadedDocs.length} documents</div>
               </div>
               <div className="row" style={{ gap: 10 }}>
-                <select
-                  value={uploadClientId}
-                  onChange={e => setUploadClientId(+e.target.value)}
-                  style={{ width: 200 }}
-                >
-                  {CLIENTS.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                <select value={uploadClientId} onChange={e => setUploadClientId(+e.target.value)} style={{ width: 200 }}>
+                  {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
                 <input type="file" ref={fileInputRef} onChange={handleFileUpload} style={{ display: "none" }} />
                 <button className="btn" onClick={() => fileInputRef.current.click()}>↑ Upload Document</button>
               </div>
             </div>
 
-            {pendingAnalysis > 0 && (
-              <div style={{ background: "rgba(245,158,11,0.07)", border: "1px solid rgba(245,158,11,0.2)", borderRadius: 6, padding: "10px 16px", marginBottom: 20, fontSize: 11, color: "#f59e0b", fontFamily: MONO }}>
-                ⚠ {pendingAnalysis} document{pendingAnalysis > 1 ? "s" : ""} awaiting AI analysis
+            {pendingDocs > 0 && (
+              <div style={{ background: "rgba(245,158,11,0.07)", border: "1px solid rgba(245,158,11,0.2)", borderRadius: 6, padding: "10px 16px", marginBottom: 20, fontSize: 11, color: "#f59e0b" }}>
+                ⚠ {pendingDocs} document{pendingDocs > 1 ? "s" : ""} awaiting AI analysis
               </div>
             )}
 
             {uploadedDocs.map(doc => {
-              const client = CLIENTS.find(c => c.id === doc.clientId);
+              const client = clients.find(c => c.id === doc.clientId);
               const isAnalyzing = analyzing === doc.id;
               return (
                 <div key={doc.id} className="doc-row">
-                  <div className="row" style={{ justifyContent: "space-between", marginBottom: doc.summary ? 10 : 0 }}>
+                  <div className="row" style={{ justifyContent: "space-between", marginBottom: doc.summary ? 12 : 0 }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div className="row" style={{ gap: 10, marginBottom: 4 }}>
-                        <div style={{ fontSize: 13, color: "#c8a96e", fontWeight: 500, fontFamily: MONO, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>◻ {doc.name}</div>
+                        <div style={{ fontSize: 13, color: "#c8a96e", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>◻ {doc.name}</div>
                         <span className="tag" style={{ background: doc.status === "analyzed" ? "#22c55e22" : "#f59e0b22", color: doc.status === "analyzed" ? "#22c55e" : "#f59e0b", flexShrink: 0 }}>
-                          {doc.status === "analyzed" ? "✓ AI Analyzed" : "Pending"}
+                          {doc.status === "analyzed" ? "✓ Analyzed" : "Pending"}
                         </span>
                       </div>
-                      <div style={{ fontSize: 10, color: "#4a5568", fontFamily: MONO }}>{doc.type} · {doc.size} · {client?.name} · Uploaded {doc.uploaded}</div>
+                      <div style={{ fontSize: 11, color: "#4a5568" }}>{doc.type} · {doc.size} · {client?.name} · {doc.uploaded}</div>
                     </div>
                     {doc.status === "pending" && doc.userUploaded && (
                       <button className="btn" disabled={isAnalyzing} onClick={() => analyzeDocument(doc.id)} style={{ marginLeft: 12, flexShrink: 0 }}>
@@ -593,12 +510,14 @@ export default function SwanComplianceTracker() {
                   {isAnalyzing && (
                     <div style={{ marginTop: 10 }}>
                       <div className="shimmer" style={{ marginBottom: 6 }} />
-                      <div className="shimmer" style={{ width: "75%" }} />
+                      <div className="shimmer" style={{ width: "80%", marginBottom: 6 }} />
+                      <div className="shimmer" style={{ width: "60%" }} />
                     </div>
                   )}
                   {doc.summary && !isAnalyzing && (
-                    <div style={{ background: "#0d0f15", border: "1px solid #1e2330", borderRadius: 4, padding: "10px 14px", fontSize: 11, color: "#94a3b8", lineHeight: 1.7, fontFamily: MONO }}>
-                      <span style={{ color: "#c8a96e", marginRight: 6 }}>✦ AI ANALYSIS:</span>{renderMarkdown(doc.summary)}
+                    <div style={{ background: "#0d0f15", border: "1px solid #1e2330", borderRadius: 4, padding: "12px 16px", fontSize: 12, color: "#94a3b8", lineHeight: 1.7 }}>
+                      <div style={{ color: "#c8a96e", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", marginBottom: 8 }}>✦ AI CASE ANALYSIS</div>
+                      {renderMarkdown(doc.summary)}
                     </div>
                   )}
                 </div>
@@ -607,29 +526,30 @@ export default function SwanComplianceTracker() {
           </div>
         )}
 
-        {/* AI RESEARCH */}
-        {activeTab === "ai-research" && (
+        {/* AI ASSISTANT */}
+        {activeTab === "ai-assistant" && (
           <div>
             <div style={{ marginBottom: 24 }}>
-              <div className="page-title" style={{ marginBottom: 4 }}>AI Legal Research</div>
-              <div style={{ fontSize: 11, color: "#4a5568", fontFamily: MONO }}>Context-aware compliance intelligence · powered by Claude</div>
+              <div style={{ fontSize: 24, fontWeight: 800, color: "#e2e8f0", marginBottom: 4 }}>AI Legal Assistant</div>
+              <div style={{ fontSize: 12, color: "#4a5568" }}>Case-aware PI law intelligence · powered by Claude</div>
             </div>
 
             {aiChat.length === 0 && (
               <div style={{ marginBottom: 20 }}>
-                <div className="section-title">Suggested Queries</div>
+                <div style={{ fontSize: 10, color: "#4a5568", letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 600, marginBottom: 12 }}>Suggested Queries</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                   {[
-                    "What are the latest SEC amendments to Form ADV?",
-                    "Summarize HIPAA breach notification requirements",
-                    "AML red flags for our fintech clients",
-                    "GDPR Article 28 processor obligations",
-                    "Upcoming compliance deadlines this month",
+                    "What's the statute of limitations for auto accidents?",
+                    "How do I maximize a soft tissue injury settlement?",
+                    "Expert witnesses needed for medical malpractice?",
+                    "Best strategies for truck accident cases",
+                    "How to calculate pain and suffering damages",
+                    "Strongest arguments for Marcus Williams' case",
                   ].map(q => (
                     <button key={q} onClick={() => setAiInput(q)}
-                      style={{ background: "#111318", border: "1px solid #2a3040", borderRadius: 4, padding: "8px 14px", fontSize: 11, color: "#94a3b8", cursor: "pointer", fontFamily: MONO, transition: "all 0.2s" }}
+                      style={{ background: "#111318", border: "1px solid #1e2330", borderRadius: 4, padding: "8px 14px", fontSize: 11, color: "#64748b", cursor: "pointer", fontFamily: FONT, transition: "all 0.2s", fontWeight: 500 }}
                       onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(200,169,110,0.3)"; e.currentTarget.style.color = "#c8a96e"; }}
-                      onMouseLeave={e => { e.currentTarget.style.borderColor = "#2a3040"; e.currentTarget.style.color = "#94a3b8"; }}>
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = "#1e2330"; e.currentTarget.style.color = "#64748b"; }}>
                       {q}
                     </button>
                   ))}
@@ -637,12 +557,13 @@ export default function SwanComplianceTracker() {
               </div>
             )}
 
-            <div className="card" style={{ minHeight: 360, display: "flex", flexDirection: "column" }}>
-              <div style={{ flex: 1, overflowY: "auto", maxHeight: 420, paddingBottom: 16 }}>
+            <div className="card" style={{ minHeight: 400, display: "flex", flexDirection: "column" }}>
+              <div style={{ flex: 1, overflowY: "auto", maxHeight: 460, paddingBottom: 16 }}>
                 {aiChat.length === 0 && (
-                  <div style={{ textAlign: "center", padding: "48px 20px" }}>
-                    <div style={{ fontSize: 28, marginBottom: 14, color: "#c8a96e" }}>✦</div>
-                    <div style={{ fontSize: 13, color: "#4a5568", fontFamily: MONO, lineHeight: 1.8 }}>Ask anything about your clients' compliance obligations,<br />regulatory requirements, or deadlines.</div>
+                  <div style={{ textAlign: "center", padding: "56px 20px" }}>
+                    <div style={{ fontSize: 24, marginBottom: 16, color: "#c8a96e" }}>✦</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "#e2e8f0", marginBottom: 8 }}>Your PI Law AI Assistant</div>
+                    <div style={{ fontSize: 12, color: "#4a5568", lineHeight: 1.8 }}>Ask about case strategy, settlements, statutes of limitations,<br />expert witnesses, or any of your active cases.</div>
                   </div>
                 )}
                 {aiChat.map((msg, i) => (
@@ -651,7 +572,7 @@ export default function SwanComplianceTracker() {
                       ? <div className="chat-bubble-user">{msg.content}</div>
                       : (
                         <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-                          <div style={{ width: 24, height: 24, background: "rgba(200,169,110,0.1)", border: "1px solid rgba(200,169,110,0.25)", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#c8a96e", flexShrink: 0 }}>✦</div>
+                          <div style={{ width: 26, height: 26, background: "rgba(200,169,110,0.1)", border: "1px solid rgba(200,169,110,0.25)", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#c8a96e", flexShrink: 0, fontWeight: 700 }}>✦</div>
                           <div className="chat-bubble-ai">{renderMarkdown(msg.content)}</div>
                         </div>
                       )}
@@ -659,24 +580,18 @@ export default function SwanComplianceTracker() {
                 ))}
                 {aiLoading && (
                   <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-                    <div className="pulse" style={{ width: 24, height: 24, background: "rgba(200,169,110,0.1)", border: "1px solid rgba(200,169,110,0.25)", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#c8a96e", flexShrink: 0 }}>✦</div>
-                    <div className="chat-bubble-ai">
-                      <div className="shimmer" style={{ width: 220, marginBottom: 6 }} />
-                      <div className="shimmer" style={{ width: 160 }} />
+                    <div className="pulse" style={{ width: 26, height: 26, background: "rgba(200,169,110,0.1)", border: "1px solid rgba(200,169,110,0.25)", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#c8a96e", flexShrink: 0 }}>✦</div>
+                    <div className="chat-bubble-ai" style={{ minWidth: 200 }}>
+                      <div className="shimmer" style={{ width: 240, marginBottom: 6 }} />
+                      <div className="shimmer" style={{ width: 180, marginBottom: 6 }} />
+                      <div className="shimmer" style={{ width: 120 }} />
                     </div>
                   </div>
                 )}
                 <div ref={chatEndRef} />
               </div>
-
               <div style={{ borderTop: "1px solid #1e2330", paddingTop: 16, display: "flex", gap: 10 }}>
-                <input
-                  value={aiInput}
-                  onChange={e => setAiInput(e.target.value)}
-                  placeholder="Ask about regulations, deadlines, compliance requirements..."
-                  onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendAiMessage()}
-                  style={{ flex: 1 }}
-                />
+                <input value={aiInput} onChange={e => setAiInput(e.target.value)} placeholder="Ask about case strategy, settlements, statutes, damages..." onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendAiMessage()} style={{ flex: 1 }} />
                 <button className="btn" onClick={sendAiMessage} disabled={aiLoading || !aiInput.trim()}>Send</button>
               </div>
             </div>
@@ -688,34 +603,64 @@ export default function SwanComplianceTracker() {
       {showAddDeadline && (
         <div className="modal-overlay" onClick={() => setShowAddDeadline(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
-            <div style={{ fontFamily: SYNE, fontWeight: 700, fontSize: 18, marginBottom: 20, color: "#e2e8f0" }}>Add Compliance Deadline</div>
+            <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 20, color: "#e2e8f0" }}>Add Case Deadline</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <div>
-                <div style={{ fontSize: 10, color: "#4a5568", letterSpacing: "0.1em", marginBottom: 6, textTransform: "uppercase", fontFamily: MONO }}>Title</div>
-                <input value={newDeadline.title} onChange={e => setNewDeadline(p => ({ ...p, title: e.target.value }))} placeholder="e.g. Form 10-K Annual Filing" />
+                <div style={{ fontSize: 10, color: "#4a5568", letterSpacing: "0.1em", marginBottom: 6, textTransform: "uppercase", fontWeight: 600 }}>Title</div>
+                <input value={newDeadline.title} onChange={e => setNewDeadline(p => ({ ...p, title: e.target.value }))} placeholder="e.g. File Complaint with Court" />
               </div>
               <div>
-                <div style={{ fontSize: 10, color: "#4a5568", letterSpacing: "0.1em", marginBottom: 6, textTransform: "uppercase", fontFamily: MONO }}>Client</div>
+                <div style={{ fontSize: 10, color: "#4a5568", letterSpacing: "0.1em", marginBottom: 6, textTransform: "uppercase", fontWeight: 600 }}>Client</div>
                 <select value={newDeadline.clientId} onChange={e => setNewDeadline(p => ({ ...p, clientId: +e.target.value }))}>
-                  {CLIENTS.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
               <div className="grid-2">
                 <div>
-                  <div style={{ fontSize: 10, color: "#4a5568", letterSpacing: "0.1em", marginBottom: 6, textTransform: "uppercase", fontFamily: MONO }}>Due Date</div>
+                  <div style={{ fontSize: 10, color: "#4a5568", letterSpacing: "0.1em", marginBottom: 6, textTransform: "uppercase", fontWeight: 600 }}>Due Date</div>
                   <input type="date" value={newDeadline.date} onChange={e => setNewDeadline(p => ({ ...p, date: e.target.value }))} />
                 </div>
                 <div>
-                  <div style={{ fontSize: 10, color: "#4a5568", letterSpacing: "0.1em", marginBottom: 6, textTransform: "uppercase", fontFamily: MONO }}>Priority</div>
-                  <select value={newDeadline.priority} onChange={e => setNewDeadline(p => ({ ...p, priority: e.target.value }))}>
-                    {["critical", "high", "medium", "low"].map(p => <option key={p} value={p}>{p}</option>)}
+                  <div style={{ fontSize: 10, color: "#4a5568", letterSpacing: "0.1em", marginBottom: 6, textTransform: "uppercase", fontWeight: 600 }}>Type</div>
+                  <select value={newDeadline.type} onChange={e => setNewDeadline(p => ({ ...p, type: e.target.value }))}>
+                    <option value="court">Court</option>
+                    <option value="internal">Internal</option>
                   </select>
                 </div>
               </div>
             </div>
             <div className="row" style={{ justifyContent: "flex-end", gap: 10, marginTop: 22 }}>
-              <button className="btn-outline" onClick={() => setShowAddDeadline(false)}>Cancel</button>
+              <button className="btn-ghost" onClick={() => setShowAddDeadline(false)}>Cancel</button>
               <button className="btn" onClick={addDeadline}>Add Deadline</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Client Modal */}
+      {showAddClient && (
+        <div className="modal-overlay" onClick={() => setShowAddClient(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 20, color: "#e2e8f0" }}>New Case Intake</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div>
+                <div style={{ fontSize: 10, color: "#4a5568", letterSpacing: "0.1em", marginBottom: 6, textTransform: "uppercase", fontWeight: 600 }}>Client Name</div>
+                <input value={newClient.name} onChange={e => setNewClient(p => ({ ...p, name: e.target.value }))} placeholder="e.g. John Smith" />
+              </div>
+              <div>
+                <div style={{ fontSize: 10, color: "#4a5568", letterSpacing: "0.1em", marginBottom: 6, textTransform: "uppercase", fontWeight: 600 }}>Case Type</div>
+                <select value={newClient.type} onChange={e => setNewClient(p => ({ ...p, type: e.target.value }))}>
+                  {["Auto Accident", "Slip & Fall", "Medical Malpractice", "Workplace Injury", "Truck Accident", "Product Liability"].map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={{ fontSize: 10, color: "#4a5568", letterSpacing: "0.1em", marginBottom: 6, textTransform: "uppercase", fontWeight: 600 }}>Assigned Attorney</div>
+                <input value={newClient.attorney} onChange={e => setNewClient(p => ({ ...p, attorney: e.target.value }))} placeholder="e.g. J. Rodriguez" />
+              </div>
+            </div>
+            <div className="row" style={{ justifyContent: "flex-end", gap: 10, marginTop: 22 }}>
+              <button className="btn-ghost" onClick={() => setShowAddClient(false)}>Cancel</button>
+              <button className="btn" onClick={addClient}>Add Case</button>
             </div>
           </div>
         </div>
