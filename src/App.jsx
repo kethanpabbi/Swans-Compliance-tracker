@@ -63,9 +63,14 @@ export default function SwanComplianceTracker() {
     try {
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": import.meta.env.VITE_ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
+          model: "claude-haiku-4-5-20251001",
           max_tokens: 1000,
           system: context,
           messages: [...aiChat.map(m => ({ role: m.role, content: m.content })), { role: "user", content: userMsg }]
@@ -87,7 +92,7 @@ export default function SwanComplianceTracker() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
+          model: "claude-haiku-4-5-20251001",
           max_tokens: 1000,
           messages: [{ role: "user", content: `As a compliance AI, provide a realistic mock analysis summary (2-3 sentences) for a legal document named "${doc.name}" of type "${doc.type}" for client matter "${CLIENTS.find(c => c.id === doc.clientId)?.matter}". Include specific regulatory references and actionable flags.` }]
         })
