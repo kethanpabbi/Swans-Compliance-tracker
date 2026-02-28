@@ -1,8 +1,10 @@
-# Legal Compliance Tracker (Swan Project)
+# 🦢 Legal PI Case Manager
 
-> **Legal Intelligence Platform** — AI-powered compliance management for legal teams.
+> **Brute force innovation into the legal industry.**
 
-A full-featured compliance tracking application built for law firms and legal operations teams. Combines client matter management, deadline tracking, document analysis, and Claude AI-powered legal research into a single unified interface.
+An AI-powered case management platform built for plaintiff personal injury law firms. Combines case intake, deadline tracking, document analysis with real text extraction, and a context-aware Claude AI assistant — all in a single unified interface.
+
+Built to support Swan's mission: helping law firms serve more clients so the 92% of low-income households that can't afford legal help finally can.
 
 ---
 
@@ -10,11 +12,11 @@ A full-featured compliance tracking application built for law firms and legal op
 
 | Feature | Description |
 |---|---|
-| **Dashboard** | At-a-glance compliance overview — risk matrix, critical deadlines, recent AI analysis |
-| **Clients & Matters** | Manage clients, jurisdiction, risk level, and matter status |
-| **Deadline Tracker** | Color-coded urgency system — critical, high, medium, low |
-| **Document Analysis** | Upload documents and trigger live AI-powered compliance review |
-| **AI Legal Research** | Context-aware Claude AI chat with full client/matter awareness |
+| **Dashboard** | At-a-glance overview — active cases, pipeline value, urgent deadlines, recent AI analysis |
+| **Cases** | PI case management with intake, stage tracking, estimated settlement values, and attorney assignment |
+| **Deadlines** | Court and internal deadlines grouped by urgency — critical, high, upcoming, later |
+| **Document Analysis** | Upload PDF/DOCX — AI extracts the actual text and analyzes real document contents |
+| **AI Assistant** | Context-aware Claude chat with full case awareness + document querying mode |
 
 ---
 
@@ -22,39 +24,12 @@ A full-featured compliance tracking application built for law firms and legal op
 
 ```
 swan-compliance-tracker/
-├── public/
-│   └── index.html                  # HTML entry point
-│
+├── index.html                  # Vite HTML entry point (must be at root)
+├── public/                     # Static assets
 ├── src/
-│   ├── components/
-│   │   ├── Dashboard.jsx           # Overview stats, risk matrix, deadline summary
-│   │   ├── ClientsPanel.jsx        # Client/matter management and filtering
-│   │   ├── DeadlineTracker.jsx     # Deadline list, urgency grouping, add modal
-│   │   ├── DocumentAnalysis.jsx    # File upload + AI document review
-│   │   ├── AIResearch.jsx          # Claude AI chat interface
-│   │   ├── Header.jsx              # App header with alert banners
-│   │   └── Sidebar.jsx             # Tab navigation
-│   │
-│   ├── hooks/
-│   │   ├── useDeadlines.js         # Deadline state management
-│   │   ├── useDocuments.js         # Document upload + analysis logic
-│   │   └── useAIChat.js            # Claude API chat state
-│   │
-│   ├── lib/
-│   │   ├── api.js                  # Anthropic API client wrapper
-│   │   ├── constants.js            # App-wide constants, mock data
-│   │   └── utils.js                # Date helpers, risk color logic, formatters
-│   │
-│   ├── styles/
-│   │   └── globals.css             # Global styles, CSS variables, animations
-│   │
-│   └── App.jsx                     # Root component and routing
-│
-├── docs/
-│   ├── ARCHITECTURE.md             # Technical architecture overview
-│   └── API.md                      # API integration reference
-│
-├── .env.example                    # Environment variable template
+│   └── App.jsx                 # Full application — single component file
+├── .env                        # Your API key (never commit this)
+├── .env.example                # API key template
 ├── package.json
 ├── vite.config.js
 └── README.md
@@ -67,36 +42,22 @@ swan-compliance-tracker/
 ### Prerequisites
 
 - Node.js `>=18.0.0`
-- npm or yarn
-- Anthropic API key ([get one here](https://console.anthropic.com))
+- npm
+- Anthropic API key — [get one at console.anthropic.com](https://console.anthropic.com)
 
 ### Installation
 
 ```bash
-# Clone the repository
-git clone https://github.com/swans/compliance-tracker.git
-cd compliance-tracker
+# 1. Unzip and enter the project folder
+cd swan-compliance-tracker
 
-# Install dependencies
+# 2. Install dependencies
 npm install
 
-# Set up environment variables
-cp .env.example .env
-```
+# 3. Create your .env file
+echo "VITE_ANTHROPIC_API_KEY=sk-ant-your-key-here" > .env
 
-### Environment Variables
-
-Open `.env` and add your credentials:
-
-```env
-VITE_ANTHROPIC_API_KEY=your_api_key_here
-```
-
-> ⚠️ **Security Note:** Never commit your `.env` file. It's included in `.gitignore` by default.
-
-### Development
-
-```bash
+# 4. Start the dev server
 npm run dev
 ```
 
@@ -111,37 +72,61 @@ npm run preview
 
 ---
 
+## 🔑 Environment Variables
+
+```env
+VITE_ANTHROPIC_API_KEY=sk-ant-your-key-here
+```
+
+> ⚠️ **Security Note:** Never commit your `.env` file. It is included in `.gitignore` by default. The API key is sent directly from the browser using `anthropic-dangerous-direct-browser-access: true` — suitable for internal demos only. For production, proxy API calls through a backend server.
+
+---
+
 ## 🤖 AI Integration
 
-This app uses the **Claude claude-sonnet-4-20250514** model via the Anthropic Messages API.
+All AI features use **claude-haiku-4-5-20251001** via the Anthropic Messages API — the fastest and most cost-effective model, ideal for real-time legal analysis.
 
 ### Document Analysis
 
-When a document is uploaded and "AI Analyze" is triggered, the app sends document metadata + matter context to Claude and returns a structured compliance summary with regulatory flags.
+1. User uploads a `.pdf`, `.docx`, or `.txt` file
+2. The browser extracts the full text using **pdf.js** (PDF) or **mammoth.js** (DOCX)
+3. Extracted text is sent to Claude alongside case context
+4. Claude returns a structured analysis: key facts, liability indicators, legal significance, and recommended next steps
+5. A **"✓ Text extracted"** badge confirms actual content was read (not just filename)
 
-### AI Legal Research Chat
+### Document Querying
 
-The AI Research tab includes full system-prompt context:
-- All active clients and their matters
-- Upcoming critical deadlines (within 14 days)
-- Jurisdiction awareness
+After analysis, click **"✦ Ask AI →"** on any document to enter **doc mode**:
+- Full document text is loaded into the AI assistant's context
+- AI can answer questions about specific clauses, fields to fill in, legal implications, and red flags
+- A gold banner shows which document is active
+- Click **"✕ Exit doc mode"** to return to general case chat
 
-Claude responds with regulation-specific guidance, citations, and actionable flags.
+### AI Legal Assistant
+
+The assistant is context-aware at all times:
+- All active PI cases with type, stage, and estimated value
+- Upcoming deadlines within 14 days
+- When in doc mode: full document text (up to 4,000 characters)
+
+Suggested queries change dynamically based on whether a document is loaded.
 
 ---
 
 ## 📋 Data Model
 
-### Client
+### Case (Client)
 
 ```ts
 {
   id: number
   name: string
-  matter: string
-  status: "active" | "review" | "closed"
-  risk: "high" | "medium" | "low"
-  jurisdiction: "Federal" | "State" | "EU" | string
+  type: "Auto Accident" | "Slip & Fall" | "Medical Malpractice" | "Workplace Injury" | "Truck Accident" | "Product Liability"
+  status: "active" | "settlement" | "closed"
+  stage: "Intake" | "Discovery" | "Filing" | "Negotiation" | "Litigation" | "Settlement" | "Closed"
+  intake: string          // ISO date
+  value: string           // estimated settlement, e.g. "$85,000"
+  attorney: string
 }
 ```
 
@@ -152,10 +137,10 @@ Claude responds with regulation-specific guidance, citations, and actionable fla
   id: number
   clientId: number
   title: string
-  date: string           // ISO 8601
-  priority: "critical" | "high" | "medium" | "low"
-  status: "pending" | "in-progress" | "complete"
-  daysLeft: number       // computed from today
+  date: string            // ISO date
+  daysLeft: number        // computed from today
+  status: "pending" | "in-progress"
+  type: "court" | "internal"
 }
 ```
 
@@ -168,9 +153,11 @@ Claude responds with regulation-specific guidance, citations, and actionable fla
   name: string
   type: string
   size: string
-  uploaded: string       // ISO 8601
+  uploaded: string        // ISO date
   status: "pending" | "analyzed"
-  summary: string | null // returned by Claude API
+  userUploaded: boolean   // only user-uploaded docs show AI Analyze button
+  extractedText: string | null   // actual text content from PDF/DOCX
+  summary: string | null  // returned by Claude
 }
 ```
 
@@ -187,8 +174,10 @@ Claude responds with regulation-specific guidance, citations, and actionable fla
 | **Critical Red** | `#ef4444` |
 | **Warning Amber** | `#f59e0b` |
 | **Safe Green** | `#22c55e` |
-| **Display Font** | Syne (800 weight) |
-| **Mono Font** | DM Mono |
+| **Purple Accent** | `#8b5cf6` |
+| **Font** | Arial, sans-serif |
+
+Stage colors: Intake (indigo), Discovery (amber), Filing (red), Negotiation (purple), Litigation (red), Settlement (green), Closed (grey)
 
 ---
 
@@ -199,30 +188,42 @@ Claude responds with regulation-specific guidance, citations, and actionable fla
 | Framework | React 18 |
 | Build Tool | Vite |
 | Styling | Inline styles + CSS-in-JS |
-| AI | Anthropic Claude API (`claude-sonnet-4-20250514`) |
-| State | React `useState` / `useReducer` |
-| Fonts | Google Fonts (Syne, DM Mono) |
+| AI Model | Anthropic Claude Haiku (`claude-haiku-4-5-20251001`) |
+| PDF Parsing | pdf.js (Cloudflare CDN) |
+| DOCX Parsing | mammoth.js (Cloudflare CDN) |
+| State | React `useState` hooks |
 
 ---
 
-## 🔐 Security & Compliance
+## 🔐 Security Notes
 
-- API keys stored in environment variables only — never in source code
-- No sensitive client data is persisted to external storage
-- All document analysis is performed client-side through the Anthropic API
-- The app does not store or log document contents
+- API key stored in `.env` only — never hardcoded in source
+- `anthropic-dangerous-direct-browser-access: true` header is required for direct browser API calls
+- No document content is stored or logged externally — analysis happens in-session only
+- For production deployments, route all API calls through a backend to keep the API key server-side
 
 ---
 
 ## 🗺 Roadmap
 
+- [x] PI case management with stages and estimated values
+- [x] Court vs internal deadline classification
+- [x] PDF and DOCX text extraction in browser
+- [x] AI document analysis using actual file contents
+- [x] Document querying mode in AI assistant
 - [ ] Backend persistence (PostgreSQL / Supabase)
-- [ ] Real document parsing (PDF, DOCX text extraction)
-- [ ] Calendar sync for deadlines (Google Calendar / Outlook)
-- [ ] Multi-user authentication and role-based access
-- [ ] Email/Slack alerts for critical deadlines
-- [ ] Audit log for compliance actions
+- [ ] Calendar sync for court deadlines (Google Calendar / Outlook)
+- [ ] Multi-user auth with attorney role separation
+- [ ] Email/SMS alerts for critical court deadlines
+- [ ] Intake form with client-facing portal
+- [ ] Settlement calculator with comparable case data
 
 ---
 
-*Built with [Claude AI](https://anthropic.com) 
+## 📄 License
+
+MIT © Kethan Pabbi
+
+---
+
+*Built with [Claude AI](https://anthropic.com) · Brute forcing innovation into law*
