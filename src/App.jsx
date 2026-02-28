@@ -1,0 +1,599 @@
+import { useState, useEffect, useRef } from "react";
+
+const CLIENTS = [
+  { id: 1, name: "Meridian Capital Group", matter: "SEC Regulatory Compliance", status: "active", risk: "high", jurisdiction: "Federal" },
+  { id: 2, name: "Harlow & Associates", matter: "GDPR Data Protection Audit", status: "active", risk: "medium", jurisdiction: "EU" },
+  { id: 3, name: "Vantage HealthCorp", matter: "HIPAA Privacy Compliance", status: "review", risk: "high", jurisdiction: "Federal" },
+  { id: 4, name: "Stonebridge Ventures", matter: "AML/KYC Framework Review", status: "active", risk: "low", jurisdiction: "State" },
+  { id: 5, name: "Orion Logistics Ltd", matter: "DOT Safety Regulations", status: "closed", risk: "low", jurisdiction: "Federal" },
+];
+
+const DEADLINES = [
+  { id: 1, clientId: 1, title: "Form ADV Annual Update", date: "2026-03-15", priority: "critical", status: "pending", daysLeft: 16 },
+  { id: 2, clientId: 3, title: "HIPAA Risk Assessment Due", date: "2026-03-02", priority: "critical", status: "pending", daysLeft: 3 },
+  { id: 3, clientId: 2, title: "DPA Review Submission", date: "2026-03-20", priority: "high", status: "in-progress", daysLeft: 21 },
+  { id: 4, clientId: 4, title: "SAR Filing Window", date: "2026-04-01", priority: "medium", status: "pending", daysLeft: 33 },
+  { id: 5, clientId: 1, title: "Quarterly Compliance Report", date: "2026-04-10", priority: "medium", status: "pending", daysLeft: 42 },
+  { id: 6, clientId: 2, title: "Staff Training Certification", date: "2026-03-28", priority: "low", status: "in-progress", daysLeft: 29 },
+];
+
+const DOCUMENTS = [
+  { id: 1, clientId: 1, name: "SEC_ADV_Draft_v3.pdf", type: "Regulatory Filing", size: "2.4 MB", uploaded: "2026-02-20", status: "analyzed", summary: "Annual advisory filing with updated AUM disclosures. 3 risk flags identified in Section 7B." },
+  { id: 2, clientId: 3, name: "HIPAA_Policy_Manual.docx", type: "Policy Document", size: "1.1 MB", uploaded: "2026-02-15", status: "analyzed", summary: "PHI handling procedures compliant. Breach notification timeline requires update per 2024 OCR guidance." },
+  { id: 3, clientId: 2, name: "DPA_Agreement_Final.pdf", type: "Contract", size: "890 KB", uploaded: "2026-02-25", status: "pending", summary: null },
+  { id: 4, clientId: 4, name: "AML_Risk_Matrix.xlsx", type: "Risk Assessment", size: "340 KB", uploaded: "2026-02-18", status: "analyzed", summary: "Low-risk customer base identified. Enhanced due diligence required for 2 entity types in Schedule B." },
+];
+
+const RISK_COLORS = { high: "#ef4444", medium: "#f59e0b", low: "#22c55e", critical: "#dc2626" };
+const STATUS_LABELS = { pending: "Pending", "in-progress": "In Progress", closed: "Closed", active: "Active", review: "Under Review", analyzed: "AI Analyzed" };
+
+export default function SwanComplianceTracker() {
+  const [activeTab, setActiveTab] = useState("dashboard");
+  const [selectedClient, setSelectedClient] = useState(null);
+  const [aiChat, setAiChat] = useState([]);
+  const [aiInput, setAiInput] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [uploadedDocs, setUploadedDocs] = useState(DOCUMENTS);
+  const [analyzing, setAnalyzing] = useState(null);
+  const [showAddDeadline, setShowAddDeadline] = useState(false);
+  const [deadlines, setDeadlines] = useState(DEADLINES);
+  const [newDeadline, setNewDeadline] = useState({ title: "", date: "", priority: "medium", clientId: 1 });
+  const fileInputRef = useRef();
+  const chatEndRef = useRef();
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [aiChat]);
+
+  const filteredDeadlines = selectedClient
+    ? deadlines.filter(d => d.clientId === selectedClient)
+    : deadlines;
+  const filteredDocs = selectedClient
+    ? uploadedDocs.filter(d => d.clientId === selectedClient)
+    : uploadedDocs;
+
+  const criticalCount = deadlines.filter(d => d.daysLeft <= 7).length;
+  const highRiskCount = CLIENTS.filter(c => c.risk === "high").length;
+  const pendingAnalysis = uploadedDocs.filter(d => d.status === "pending").length;
+
+  async function sendAiMessage() {
+    if (!aiInput.trim()) return;
+    const userMsg = aiInput.trim();
+    setAiInput("");
+    setAiChat(prev => [...prev, { role: "user", content: userMsg }]);
+    setAiLoading(true);
+
+    const context = `You are a senior legal compliance AI assistant at Swan Legal. You help attorneys track regulatory compliance, analyze documents, and research legal requirements. Current active clients: ${CLIENTS.map(c => `${c.name} (${c.matter})`).join(", ")}. Upcoming critical deadlines: ${deadlines.filter(d => d.daysLeft <= 14).map(d => `${d.title} in ${d.daysLeft} days`).join(", ")}. Be concise, precise, and cite specific regulations when relevant.`;
+
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          system: context,
+          messages: [
+            ...aiChat.map(m => ({ role: m.role, content: m.content })),
+            { role: "user", content: userMsg }
+          ]
+        })
+      });
+      const data = await res.json();
+      const reply = data.content?.[0]?.text || "Unable to get response.";
+      setAiChat(prev => [...prev, { role: "assistant", content: reply }]);
+    } catch {
+      setAiChat(prev => [...prev, { role: "assistant", content: "Connection error. Please try again." }]);
+    }
+    setAiLoading(false);
+  }
+
+  async function analyzeDocument(docId) {
+    setAnalyzing(docId);
+    const doc = uploadedDocs.find(d => d.id === docId);
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          messages: [{
+            role: "user",
+            content: `As a compliance AI, provide a realistic mock analysis summary (2-3 sentences) for a legal document named "${doc.name}" of type "${doc.type}" for client matter "${CLIENTS.find(c=>c.id===doc.clientId)?.matter}". Include specific regulatory references and actionable flags.`
+          }]
+        })
+      });
+      const data = await res.json();
+      const summary = data.content?.[0]?.text || "Analysis complete.";
+      setUploadedDocs(prev => prev.map(d => d.id === docId ? { ...d, status: "analyzed", summary } : d));
+    } catch {
+      setUploadedDocs(prev => prev.map(d => d.id === docId ? { ...d, status: "analyzed", summary: "Analysis failed. Please retry." } : d));
+    }
+    setAnalyzing(null);
+  }
+
+  function handleFileUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const newDoc = {
+      id: uploadedDocs.length + 1,
+      clientId: selectedClient || 1,
+      name: file.name,
+      type: "Uploaded Document",
+      size: `${(file.size / 1024).toFixed(0)} KB`,
+      uploaded: new Date().toISOString().split("T")[0],
+      status: "pending",
+      summary: null
+    };
+    setUploadedDocs(prev => [...prev, newDoc]);
+  }
+
+  function addDeadline() {
+    if (!newDeadline.title || !newDeadline.date) return;
+    const today = new Date("2026-02-27");
+    const due = new Date(newDeadline.date);
+    const daysLeft = Math.ceil((due - today) / (1000 * 60 * 60 * 24));
+    setDeadlines(prev => [...prev, { ...newDeadline, id: prev.length + 1, status: "pending", daysLeft }]);
+    setNewDeadline({ title: "", date: "", priority: "medium", clientId: 1 });
+    setShowAddDeadline(false);
+  }
+
+  const tabs = ["dashboard", "clients", "deadlines", "documents", "ai-research"];
+  const tabLabels = { dashboard: "Dashboard", clients: "Clients & Matters", deadlines: "Deadlines", documents: "Documents", "ai-research": "AI Research" };
+  const tabIcons = { dashboard: "⬡", clients: "◈", deadlines: "◷", documents: "◻", "ai-research": "✦" };
+
+  return (
+    <div style={{ fontFamily: "'DM Mono', 'Courier New', monospace", background: "#0a0c10", minHeight: "100vh", color: "#e2e8f0" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap');
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: #0a0c10; } ::-webkit-scrollbar-thumb { background: #2a3040; border-radius: 2px; }
+        .tab-btn { background: none; border: none; cursor: pointer; color: #4a5568; font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 0.1em; padding: 10px 16px; transition: all 0.2s; text-transform: uppercase; }
+        .tab-btn.active { color: #c8a96e; border-bottom: 1px solid #c8a96e; }
+        .tab-btn:hover { color: #94a3b8; }
+        .card { background: #111318; border: 1px solid #1e2330; border-radius: 8px; padding: 20px; }
+        .tag { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; }
+        .btn { background: #c8a96e; color: #0a0c10; border: none; border-radius: 4px; padding: 8px 16px; font-family: 'DM Mono', monospace; font-size: 11px; cursor: pointer; letter-spacing: 0.05em; font-weight: 500; transition: all 0.2s; }
+        .btn:hover { background: #d4b97e; }
+        .btn-outline { background: transparent; color: #c8a96e; border: 1px solid #c8a96e; border-radius: 4px; padding: 6px 14px; font-family: 'DM Mono', monospace; font-size: 11px; cursor: pointer; letter-spacing: 0.05em; transition: all 0.2s; }
+        .btn-outline:hover { background: #c8a96e22; }
+        input, select, textarea { background: #0d0f15; border: 1px solid #1e2330; border-radius: 4px; color: #e2e8f0; font-family: 'DM Mono', monospace; font-size: 12px; padding: 8px 12px; width: 100%; outline: none; transition: border 0.2s; }
+        input:focus, select:focus, textarea:focus { border-color: #c8a96e44; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+        .row { display: flex; align-items: center; gap: 12px; }
+        .stat-num { font-family: 'Syne', sans-serif; font-size: 32px; font-weight: 800; color: #c8a96e; }
+        .section-title { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em; color: #94a3b8; margin-bottom: 16px; }
+        .client-row { padding: 14px 16px; border: 1px solid #1e2330; border-radius: 6px; cursor: pointer; transition: all 0.2s; margin-bottom: 8px; background: #0d0f15; }
+        .client-row:hover, .client-row.selected { border-color: #c8a96e44; background: #111318; }
+        .deadline-row { padding: 14px 16px; border-left: 3px solid; border-radius: 0 6px 6px 0; background: #0d0f15; margin-bottom: 8px; transition: all 0.2s; }
+        .deadline-row:hover { background: #111318; }
+        .doc-row { padding: 14px 16px; border: 1px solid #1e2330; border-radius: 6px; margin-bottom: 8px; background: #0d0f15; }
+        .chat-bubble-user { background: #1a2035; border-radius: 8px 8px 2px 8px; padding: 10px 14px; max-width: 75%; margin-left: auto; font-size: 12px; line-height: 1.6; }
+        .chat-bubble-ai { background: #111318; border: 1px solid #1e2330; border-radius: 8px 8px 8px 2px; padding: 10px 14px; max-width: 85%; font-size: 12px; line-height: 1.6; color: #cbd5e0; }
+        .pulse { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+        .badge { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+        .shimmer { background: linear-gradient(90deg, #1e2330 25%, #252b3b 50%, #1e2330 75%); background-size: 200%; animation: shimmer 1.5s infinite; border-radius: 4px; height: 12px; }
+        @keyframes shimmer { 0% { background-position: 200%; } 100% { background-position: -200%; } }
+        .modal-overlay { position: fixed; inset: 0; background: #00000088; display: flex; align-items: center; justify-content: center; z-index: 100; }
+        .modal { background: #111318; border: 1px solid #2a3040; border-radius: 10px; padding: 28px; width: 420px; }
+      `}</style>
+
+      {/* Header */}
+      <div style={{ borderBottom: "1px solid #1e2330", padding: "0 32px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 56 }}>
+        <div className="row" style={{ gap: 16 }}>
+          <div style={{ fontFamily: "Syne, sans-serif", fontWeight: 800, fontSize: 16, letterSpacing: "0.05em", color: "#c8a96e" }}>
+            SWANS <span style={{ color: "#4a5568", fontWeight: 400 }}>/</span> <span style={{ color: "#94a3b8", fontSize: 13, fontWeight: 600 }}>COMPLIANCE</span>
+          </div>
+          <div style={{ width: 1, height: 20, background: "#1e2330" }} />
+          <div style={{ fontSize: 10, color: "#4a5568", letterSpacing: "0.1em" }}>LEGAL INTELLIGENCE PLATFORM</div>
+        </div>
+        <div className="row" style={{ gap: 8 }}>
+          {criticalCount > 0 && (
+            <div style={{ background: "#dc262622", border: "1px solid #dc262633", borderRadius: 4, padding: "4px 10px", fontSize: 10, color: "#ef4444", letterSpacing: "0.08em" }}>
+              ⚠ {criticalCount} CRITICAL DEADLINE{criticalCount > 1 ? "S" : ""}
+            </div>
+          )}
+          <div style={{ fontSize: 10, color: "#4a5568" }}>FEB 27, 2026</div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ borderBottom: "1px solid #1e2330", padding: "0 32px", display: "flex" }}>
+        {tabs.map(t => (
+          <button key={t} className={`tab-btn ${activeTab === t ? "active" : ""}`} onClick={() => setActiveTab(t)}>
+            {tabIcons[t]} {tabLabels[t]}
+          </button>
+        ))}
+      </div>
+
+      {/* Content */}
+      <div style={{ padding: "28px 32px", maxWidth: 1100, margin: "0 auto" }}>
+
+        {/* DASHBOARD */}
+        {activeTab === "dashboard" && (
+          <div>
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontFamily: "Syne, sans-serif", fontSize: 22, fontWeight: 800, color: "#e2e8f0", marginBottom: 4 }}>Compliance Overview</div>
+              <div style={{ fontSize: 11, color: "#4a5568", letterSpacing: "0.08em" }}>ALL ACTIVE MATTERS · Q1 2026</div>
+            </div>
+
+            {/* Stats */}
+            <div className="grid-3" style={{ marginBottom: 24 }}>
+              {[
+                { label: "Active Clients", val: CLIENTS.filter(c => c.status === "active").length, sub: `${CLIENTS.length} total matters`, accent: "#c8a96e" },
+                { label: "Critical Deadlines", val: criticalCount, sub: "Due within 7 days", accent: "#ef4444" },
+                { label: "High Risk Matters", val: highRiskCount, sub: "Require immediate attention", accent: "#f59e0b" },
+              ].map(s => (
+                <div key={s.label} className="card" style={{ borderColor: s.accent + "22" }}>
+                  <div style={{ fontSize: 10, color: "#4a5568", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>{s.label}</div>
+                  <div style={{ color: s.accent }} className="stat-num">{s.val}</div>
+                  <div style={{ fontSize: 11, color: "#4a5568", marginTop: 4 }}>{s.sub}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid-2">
+              {/* Upcoming Deadlines */}
+              <div className="card">
+                <div className="section-title">Upcoming Deadlines</div>
+                {deadlines.sort((a,b) => a.daysLeft - b.daysLeft).slice(0,4).map(d => {
+                  const client = CLIENTS.find(c => c.id === d.clientId);
+                  const color = d.daysLeft <= 7 ? "#ef4444" : d.daysLeft <= 21 ? "#f59e0b" : "#22c55e";
+                  return (
+                    <div key={d.id} className="deadline-row" style={{ borderLeftColor: color, marginBottom: 8 }}>
+                      <div className="row" style={{ justifyContent: "space-between" }}>
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 500, color: "#e2e8f0", marginBottom: 2 }}>{d.title}</div>
+                          <div style={{ fontSize: 10, color: "#4a5568" }}>{client?.name}</div>
+                        </div>
+                        <div style={{ textAlign: "right" }}>
+                          <div style={{ fontSize: 16, fontFamily: "Syne, sans-serif", fontWeight: 700, color }}>{d.daysLeft}d</div>
+                          <div style={{ fontSize: 9, color: "#4a5568", textTransform: "uppercase" }}>{d.date}</div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                <button className="btn-outline" style={{ width: "100%", marginTop: 8 }} onClick={() => setActiveTab("deadlines")}>View All Deadlines →</button>
+              </div>
+
+              {/* Client Risk Overview */}
+              <div className="card">
+                <div className="section-title">Client Risk Matrix</div>
+                {CLIENTS.map(c => (
+                  <div key={c.id} className="row" style={{ justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #1e2330" }}>
+                    <div>
+                      <div style={{ fontSize: 12, color: "#e2e8f0" }}>{c.name}</div>
+                      <div style={{ fontSize: 10, color: "#4a5568", marginTop: 2 }}>{c.matter}</div>
+                    </div>
+                    <div className="row" style={{ gap: 8 }}>
+                      <span className="tag" style={{ background: RISK_COLORS[c.risk] + "22", color: RISK_COLORS[c.risk] }}>{c.risk}</span>
+                      <span className="tag" style={{ background: "#1e2330", color: "#94a3b8" }}>{c.status}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Recent Documents */}
+            <div className="card" style={{ marginTop: 16 }}>
+              <div className="section-title">Recently Analyzed Documents</div>
+              <div className="grid-2">
+                {uploadedDocs.filter(d => d.status === "analyzed").slice(0, 2).map(doc => (
+                  <div key={doc.id} style={{ padding: 14, background: "#0d0f15", border: "1px solid #1e2330", borderRadius: 6 }}>
+                    <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
+                      <div style={{ fontSize: 12, color: "#c8a96e" }}>◻ {doc.name}</div>
+                      <span className="tag" style={{ background: "#22c55e22", color: "#22c55e" }}>analyzed</span>
+                    </div>
+                    <div style={{ fontSize: 11, color: "#64748b", lineHeight: 1.6 }}>{doc.summary}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* CLIENTS */}
+        {activeTab === "clients" && (
+          <div>
+            <div className="row" style={{ justifyContent: "space-between", marginBottom: 24 }}>
+              <div>
+                <div style={{ fontFamily: "Syne, sans-serif", fontSize: 22, fontWeight: 800 }}>Clients & Matters</div>
+                <div style={{ fontSize: 11, color: "#4a5568", marginTop: 2 }}>{CLIENTS.length} matters · click to filter</div>
+              </div>
+              {selectedClient && (
+                <button className="btn-outline" onClick={() => setSelectedClient(null)}>✕ Clear Filter</button>
+              )}
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              {CLIENTS.map(c => (
+                <div key={c.id} className={`client-row ${selectedClient === c.id ? "selected" : ""}`} onClick={() => setSelectedClient(selectedClient === c.id ? null : c.id)}>
+                  <div className="row" style={{ justifyContent: "space-between" }}>
+                    <div>
+                      <div className="row" style={{ marginBottom: 4, gap: 10 }}>
+                        <div style={{ fontFamily: "Syne, sans-serif", fontWeight: 700, fontSize: 14, color: "#e2e8f0" }}>{c.name}</div>
+                        <span className="tag" style={{ background: RISK_COLORS[c.risk] + "22", color: RISK_COLORS[c.risk] }}>{c.risk} risk</span>
+                        <span className="tag" style={{ background: "#1e2330", color: "#94a3b8" }}>{c.status}</span>
+                      </div>
+                      <div style={{ fontSize: 11, color: "#64748b" }}>{c.matter} · {c.jurisdiction}</div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: 11, color: "#4a5568" }}>{deadlines.filter(d => d.clientId === c.id).length} deadline(s)</div>
+                      <div style={{ fontSize: 11, color: "#4a5568" }}>{uploadedDocs.filter(d => d.clientId === c.id).length} document(s)</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {selectedClient && (
+              <div className="grid-2">
+                <div className="card">
+                  <div className="section-title">Active Deadlines</div>
+                  {filteredDeadlines.length === 0 ? <div style={{ fontSize: 12, color: "#4a5568" }}>No deadlines for this client.</div> : filteredDeadlines.map(d => {
+                    const color = d.daysLeft <= 7 ? "#ef4444" : d.daysLeft <= 21 ? "#f59e0b" : "#22c55e";
+                    return (
+                      <div key={d.id} className="deadline-row" style={{ borderLeftColor: color }}>
+                        <div className="row" style={{ justifyContent: "space-between" }}>
+                          <div style={{ fontSize: 12, color: "#e2e8f0" }}>{d.title}</div>
+                          <div style={{ color, fontSize: 14, fontFamily: "Syne, sans-serif", fontWeight: 700 }}>{d.daysLeft}d</div>
+                        </div>
+                        <div style={{ fontSize: 10, color: "#4a5568", marginTop: 4 }}>{d.date} · {d.status}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="card">
+                  <div className="section-title">Documents</div>
+                  {filteredDocs.length === 0 ? <div style={{ fontSize: 12, color: "#4a5568" }}>No documents uploaded.</div> : filteredDocs.map(doc => (
+                    <div key={doc.id} style={{ padding: "10px 0", borderBottom: "1px solid #1e2330" }}>
+                      <div className="row" style={{ justifyContent: "space-between" }}>
+                        <div style={{ fontSize: 12, color: "#c8a96e" }}>◻ {doc.name}</div>
+                        <span className="tag" style={{ background: doc.status === "analyzed" ? "#22c55e22" : "#f59e0b22", color: doc.status === "analyzed" ? "#22c55e" : "#f59e0b" }}>{doc.status}</span>
+                      </div>
+                      <div style={{ fontSize: 10, color: "#4a5568", marginTop: 4 }}>{doc.type} · {doc.size}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* DEADLINES */}
+        {activeTab === "deadlines" && (
+          <div>
+            <div className="row" style={{ justifyContent: "space-between", marginBottom: 24 }}>
+              <div>
+                <div style={{ fontFamily: "Syne, sans-serif", fontSize: 22, fontWeight: 800 }}>Compliance Deadlines</div>
+                <div style={{ fontSize: 11, color: "#4a5568", marginTop: 2 }}>{deadlines.length} tracked obligations</div>
+              </div>
+              <button className="btn" onClick={() => setShowAddDeadline(true)}>+ Add Deadline</button>
+            </div>
+
+            {["critical", "high", "medium", "low"].map(prio => {
+              const items = deadlines.filter(d => {
+                if (prio === "critical") return d.daysLeft <= 7;
+                if (prio === "high") return d.daysLeft > 7 && d.daysLeft <= 21;
+                if (prio === "medium") return d.daysLeft > 21 && d.daysLeft <= 35;
+                return d.daysLeft > 35;
+              });
+              if (items.length === 0) return null;
+              const color = RISK_COLORS[prio];
+              const labels = { critical: "🔴 CRITICAL — Due within 7 days", high: "🟡 HIGH — Due within 3 weeks", medium: "🟢 MEDIUM — Due within 5 weeks", low: "⚪ LOW — Due later" };
+              return (
+                <div key={prio} style={{ marginBottom: 24 }}>
+                  <div style={{ fontSize: 10, color, letterSpacing: "0.12em", marginBottom: 10, textTransform: "uppercase" }}>{labels[prio]}</div>
+                  {items.map(d => {
+                    const client = CLIENTS.find(c => c.id === d.clientId);
+                    return (
+                      <div key={d.id} className="deadline-row" style={{ borderLeftColor: color }}>
+                        <div className="row" style={{ justifyContent: "space-between" }}>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 500, color: "#e2e8f0", marginBottom: 3 }}>{d.title}</div>
+                            <div className="row" style={{ gap: 8 }}>
+                              <span style={{ fontSize: 10, color: "#4a5568" }}>{client?.name}</span>
+                              <span className="tag" style={{ background: "#1e2330", color: "#94a3b8" }}>{d.status}</span>
+                              <span style={{ fontSize: 10, color: "#4a5568" }}>{client?.jurisdiction}</span>
+                            </div>
+                          </div>
+                          <div style={{ textAlign: "right" }}>
+                            <div style={{ fontSize: 22, fontFamily: "Syne, sans-serif", fontWeight: 800, color }}>{d.daysLeft}</div>
+                            <div style={{ fontSize: 9, color: "#4a5568", textTransform: "uppercase" }}>days left</div>
+                            <div style={{ fontSize: 9, color: "#4a5568" }}>{d.date}</div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* DOCUMENTS */}
+        {activeTab === "documents" && (
+          <div>
+            <div className="row" style={{ justifyContent: "space-between", marginBottom: 24 }}>
+              <div>
+                <div style={{ fontFamily: "Syne, sans-serif", fontSize: 22, fontWeight: 800 }}>Document Analysis</div>
+                <div style={{ fontSize: 11, color: "#4a5568", marginTop: 2 }}>AI-powered compliance review · {uploadedDocs.length} documents</div>
+              </div>
+              <div className="row" style={{ gap: 10 }}>
+                <input type="file" ref={fileInputRef} onChange={handleFileUpload} style={{ display: "none" }} />
+                <button className="btn" onClick={() => fileInputRef.current.click()}>↑ Upload Document</button>
+              </div>
+            </div>
+
+            {pendingAnalysis > 0 && (
+              <div style={{ background: "#f59e0b11", border: "1px solid #f59e0b33", borderRadius: 6, padding: "10px 16px", marginBottom: 20, fontSize: 11, color: "#f59e0b" }}>
+                ⚠ {pendingAnalysis} document{pendingAnalysis > 1 ? "s" : ""} awaiting AI analysis
+              </div>
+            )}
+
+            {uploadedDocs.map(doc => {
+              const client = CLIENTS.find(c => c.id === doc.clientId);
+              const isAnalyzing = analyzing === doc.id;
+              return (
+                <div key={doc.id} className="doc-row">
+                  <div className="row" style={{ justifyContent: "space-between", marginBottom: doc.summary ? 10 : 0 }}>
+                    <div style={{ flex: 1 }}>
+                      <div className="row" style={{ gap: 10, marginBottom: 4 }}>
+                        <div style={{ fontSize: 13, color: "#c8a96e", fontWeight: 500 }}>◻ {doc.name}</div>
+                        <span className="tag" style={{ background: doc.status === "analyzed" ? "#22c55e22" : "#f59e0b22", color: doc.status === "analyzed" ? "#22c55e" : "#f59e0b" }}>
+                          {doc.status === "analyzed" ? "✓ AI Analyzed" : "Pending"}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 10, color: "#4a5568" }}>
+                        {doc.type} · {doc.size} · {client?.name} · Uploaded {doc.uploaded}
+                      </div>
+                    </div>
+                    {doc.status === "pending" && (
+                      <button className="btn" disabled={isAnalyzing} onClick={() => analyzeDocument(doc.id)} style={{ opacity: isAnalyzing ? 0.6 : 1, minWidth: 120 }}>
+                        {isAnalyzing ? "Analyzing..." : "✦ AI Analyze"}
+                      </button>
+                    )}
+                  </div>
+                  {isAnalyzing && (
+                    <div style={{ marginTop: 10 }}>
+                      <div className="shimmer" style={{ marginBottom: 6 }} />
+                      <div className="shimmer" style={{ width: "75%" }} />
+                    </div>
+                  )}
+                  {doc.summary && !isAnalyzing && (
+                    <div style={{ background: "#0d0f15", border: "1px solid #1e2330", borderRadius: 4, padding: "10px 14px", fontSize: 11, color: "#94a3b8", lineHeight: 1.7 }}>
+                      <span style={{ color: "#c8a96e", marginRight: 6 }}>✦ AI ANALYSIS:</span>{doc.summary}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* AI RESEARCH */}
+        {activeTab === "ai-research" && (
+          <div>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontFamily: "Syne, sans-serif", fontSize: 22, fontWeight: 800 }}>AI Legal Research</div>
+              <div style={{ fontSize: 11, color: "#4a5568", marginTop: 2 }}>Context-aware compliance intelligence · powered by Claude</div>
+            </div>
+
+            {/* Quick prompts */}
+            {aiChat.length === 0 && (
+              <div style={{ marginBottom: 20 }}>
+                <div className="section-title">Suggested Queries</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {[
+                    "What are the latest SEC amendments to Form ADV?",
+                    "Summarize HIPAA breach notification requirements",
+                    "AML red flags for our fintech clients",
+                    "GDPR Article 28 processor obligations",
+                    "Upcoming compliance deadlines this month",
+                  ].map(q => (
+                    <button key={q} onClick={() => { setAiInput(q); }} style={{ background: "#111318", border: "1px solid #2a3040", borderRadius: 4, padding: "8px 14px", fontSize: 11, color: "#94a3b8", cursor: "pointer", fontFamily: "DM Mono, monospace", transition: "all 0.2s" }}
+                      onMouseEnter={e => { e.target.style.borderColor = "#c8a96e44"; e.target.style.color = "#c8a96e"; }}
+                      onMouseLeave={e => { e.target.style.borderColor = "#2a3040"; e.target.style.color = "#94a3b8"; }}>
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Chat */}
+            <div className="card" style={{ minHeight: 360, display: "flex", flexDirection: "column" }}>
+              <div style={{ flex: 1, overflowY: "auto", maxHeight: 400, paddingBottom: 16 }}>
+                {aiChat.length === 0 && (
+                  <div style={{ textAlign: "center", padding: "40px 20px" }}>
+                    <div style={{ fontSize: 32, marginBottom: 12 }}>✦</div>
+                    <div style={{ fontSize: 13, color: "#4a5568" }}>Ask anything about your clients' compliance obligations,</div>
+                    <div style={{ fontSize: 13, color: "#4a5568" }}>regulatory requirements, or deadlines.</div>
+                  </div>
+                )}
+                {aiChat.map((msg, i) => (
+                  <div key={i} style={{ marginBottom: 12 }}>
+                    {msg.role === "user"
+                      ? <div className="chat-bubble-user">{msg.content}</div>
+                      : (
+                        <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                          <div style={{ width: 24, height: 24, background: "#c8a96e22", border: "1px solid #c8a96e44", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#c8a96e", flexShrink: 0 }}>✦</div>
+                          <div className="chat-bubble-ai">{msg.content}</div>
+                        </div>
+                      )
+                    }
+                  </div>
+                ))}
+                {aiLoading && (
+                  <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                    <div style={{ width: 24, height: 24, background: "#c8a96e22", border: "1px solid #c8a96e44", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#c8a96e", flexShrink: 0 }} className="pulse">✦</div>
+                    <div className="chat-bubble-ai">
+                      <div className="shimmer" style={{ width: 200, marginBottom: 6 }} />
+                      <div className="shimmer" style={{ width: 140 }} />
+                    </div>
+                  </div>
+                )}
+                <div ref={chatEndRef} />
+              </div>
+
+              <div style={{ borderTop: "1px solid #1e2330", paddingTop: 16, display: "flex", gap: 10 }}>
+                <input
+                  value={aiInput}
+                  onChange={e => setAiInput(e.target.value)}
+                  placeholder="Ask about regulations, deadlines, compliance requirements..."
+                  onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendAiMessage()}
+                  style={{ flex: 1 }}
+                />
+                <button className="btn" onClick={sendAiMessage} disabled={aiLoading || !aiInput.trim()} style={{ opacity: aiLoading || !aiInput.trim() ? 0.5 : 1, padding: "8px 20px" }}>
+                  Send
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Add Deadline Modal */}
+      {showAddDeadline && (
+        <div className="modal-overlay" onClick={() => setShowAddDeadline(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div style={{ fontFamily: "Syne, sans-serif", fontWeight: 700, fontSize: 16, marginBottom: 20 }}>Add Compliance Deadline</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 10, color: "#4a5568", letterSpacing: "0.08em", marginBottom: 6, textTransform: "uppercase" }}>Title</div>
+                <input value={newDeadline.title} onChange={e => setNewDeadline(p => ({ ...p, title: e.target.value }))} placeholder="e.g. Form 10-K Annual Filing" />
+              </div>
+              <div>
+                <div style={{ fontSize: 10, color: "#4a5568", letterSpacing: "0.08em", marginBottom: 6, textTransform: "uppercase" }}>Client</div>
+                <select value={newDeadline.clientId} onChange={e => setNewDeadline(p => ({ ...p, clientId: +e.target.value }))}>
+                  {CLIENTS.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div className="grid-2">
+                <div>
+                  <div style={{ fontSize: 10, color: "#4a5568", letterSpacing: "0.08em", marginBottom: 6, textTransform: "uppercase" }}>Due Date</div>
+                  <input type="date" value={newDeadline.date} onChange={e => setNewDeadline(p => ({ ...p, date: e.target.value }))} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: "#4a5568", letterSpacing: "0.08em", marginBottom: 6, textTransform: "uppercase" }}>Priority</div>
+                  <select value={newDeadline.priority} onChange={e => setNewDeadline(p => ({ ...p, priority: e.target.value }))}>
+                    {["critical","high","medium","low"].map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="row" style={{ justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
+              <button className="btn-outline" onClick={() => setShowAddDeadline(false)}>Cancel</button>
+              <button className="btn" onClick={addDeadline}>Add Deadline</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
