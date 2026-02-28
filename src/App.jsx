@@ -21,10 +21,10 @@ const DEADLINES = [
 ];
 
 const DOCUMENTS = [
-  { id: 1, clientId: 1, name: "Police_Report_Williams.pdf", type: "Evidence", size: "1.2 MB", uploaded: "2026-02-10", status: "analyzed", summary: "Report confirms at-fault driver ran red light at intersection of 5th & Main. Witness statements corroborate client's account. Blood alcohol level of 0.09% noted for defendant — strengthens negligence claim under state tort law." },
-  { id: 2, clientId: 3, name: "Medical_Records_Carter.pdf", type: "Medical", size: "4.8 MB", uploaded: "2026-02-18", status: "analyzed", summary: "Records indicate misdiagnosis of appendicitis resulting in delayed treatment. Standard of care breach identifiable under JCAHO guidelines. Recommend retaining board-certified surgical expert witness for testimony." },
-  { id: 3, clientId: 5, name: "Accident_Reconstruction_Kim.pdf", type: "Expert Report", size: "2.1 MB", uploaded: "2026-02-24", status: "pending", summary: null },
-  { id: 4, clientId: 2, name: "Incident_Report_Nair.pdf", type: "Evidence", size: "890 KB", uploaded: "2026-02-20", status: "analyzed", summary: "Store's internal incident report confirms wet floor without warning signage. Report was filed 3 days post-incident, suggesting possible concealment. Preserves spoliation argument under Fed. R. Civ. P. 37." },
+  { id: 1, clientId: 1, name: "Police_Report_Williams.pdf", type: "Evidence", size: "1.2 MB", uploaded: "2026-02-10", status: "analyzed", userUploaded: false, extractedText: null, summary: "Report confirms at-fault driver ran red light at intersection of 5th & Main. Witness statements corroborate client's account. Blood alcohol level of 0.09% noted for defendant — strengthens negligence claim under state tort law." },
+  { id: 2, clientId: 3, name: "Medical_Records_Carter.pdf", type: "Medical", size: "4.8 MB", uploaded: "2026-02-18", status: "analyzed", userUploaded: false, extractedText: null, summary: "Records indicate misdiagnosis of appendicitis resulting in delayed treatment. Standard of care breach identifiable under JCAHO guidelines. Recommend retaining board-certified surgical expert witness for testimony." },
+  { id: 3, clientId: 5, name: "Accident_Reconstruction_Kim.pdf", type: "Expert Report", size: "2.1 MB", uploaded: "2026-02-24", status: "pending", userUploaded: false, extractedText: null, summary: null },
+  { id: 4, clientId: 2, name: "Incident_Report_Nair.pdf", type: "Evidence", size: "890 KB", uploaded: "2026-02-20", status: "analyzed", userUploaded: false, extractedText: null, summary: "Store's internal incident report confirms wet floor without warning signage. Report was filed 3 days post-incident, suggesting possible concealment. Preserves spoliation argument under Fed. R. Civ. P. 37." },
 ];
 
 const STAGE_COLORS = {
@@ -47,6 +47,8 @@ export default function SwanPITracker() {
   const [newDeadline, setNewDeadline] = useState({ title: "", date: "", clientId: 1, type: "court" });
   const [newClient, setNewClient] = useState({ name: "", type: "Auto Accident", attorney: "" });
   const [uploadClientId, setUploadClientId] = useState(1);
+  const [activeDocContext, setActiveDocContext] = useState(null);
+  const [extractingId, setExtractingId] = useState(null);
   const fileInputRef = useRef();
   const chatEndRef = useRef();
 
@@ -60,18 +62,131 @@ export default function SwanPITracker() {
   const filteredDeadlines = selectedClient ? deadlines.filter(d => d.clientId === selectedClient) : deadlines;
   const filteredDocs = selectedClient ? uploadedDocs.filter(d => d.clientId === selectedClient) : uploadedDocs;
 
+  // ── Text Extraction ─────────────────────────────────────────
+  async function extractTextFromFile(file) {
+    try {
+      if (file.type === "text/plain") {
+        return await file.text();
+      }
+      // DOCX
+      if (file.name.endsWith(".docx")) {
+        const arrayBuffer = await file.arrayBuffer();
+        const result = await window.mammoth.extractRawText({ arrayBuffer });
+        return result.value;
+      }
+      // PDF
+      if (file.type === "application/pdf" || file.name.endsWith(".pdf")) {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        let fullText = "";
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          const pageText = content.items.map(item => item.str).join(" ");
+          fullText += `\n[Page ${i}]\n${pageText}`;
+        }
+        return fullText.trim();
+      }
+      return null;
+    } catch (err) {
+      console.error("Text extraction failed:", err);
+      return null;
+    }
+  }
+
+  // ── File Upload ──────────────────────────────────────────────
+  async function handleFileUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const tempId = Date.now();
+    setExtractingId(tempId);
+    const extractedText = await extractTextFromFile(file);
+    setUploadedDocs(prev => [...prev, {
+      id: tempId,
+      clientId: uploadClientId,
+      name: file.name,
+      type: "Uploaded Document",
+      size: `${(file.size / 1024).toFixed(0)} KB`,
+      uploaded: new Date().toISOString().split("T")[0],
+      status: "pending",
+      userUploaded: true,
+      extractedText: extractedText || null,
+      summary: null
+    }]);
+    setExtractingId(null);
+    e.target.value = "";
+  }
+
+  // ── AI Document Analysis ─────────────────────────────────────
+  async function analyzeDocument(docId) {
+    setAnalyzing(docId);
+    const doc = uploadedDocs.find(d => d.id === docId);
+    const client = clients.find(c => c.id === doc.clientId);
+
+    const textSection = doc.extractedText
+      ? `\n\nDOCUMENT CONTENTS (extracted text):\n${doc.extractedText.slice(0, 4000)}`
+      : "";
+
+    const prompt = doc.extractedText
+      ? `You are a PI legal AI. Analyze this document for a plaintiff personal injury case. Based on the actual document contents below, provide a 3-5 sentence analysis covering: key facts found, legal significance, liability indicators, and recommended next steps. Case: ${client?.name} - ${client?.type}. Document: "${doc.name}"${textSection}`
+      : `You are a PI legal AI. Analyze this document for a plaintiff personal injury case. Provide 3-4 sentences covering: key facts, legal significance, liability indicators, and recommended next steps. Document: "${doc.name}", Type: "${doc.type}", Case: ${client?.name} - ${client?.type}.`;
+
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": import.meta.env.VITE_ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true"
+        },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 1000,
+          messages: [{ role: "user", content: prompt }]
+        })
+      });
+      const data = await res.json();
+      setUploadedDocs(prev => prev.map(d => d.id === docId ? { ...d, status: "analyzed", summary: data.content?.[0]?.text || "Analysis complete." } : d));
+    } catch {
+      setUploadedDocs(prev => prev.map(d => d.id === docId ? { ...d, status: "analyzed", summary: "Analysis failed. Please retry." } : d));
+    }
+    setAnalyzing(null);
+  }
+
+  // ── Open Document in AI Chat ─────────────────────────────────
+  function openDocInChat(doc) {
+    const client = clients.find(c => c.id === doc.clientId);
+    setActiveDocContext(doc);
+    const hasText = !!doc.extractedText;
+    setAiChat([{
+      role: "assistant",
+      content: `I've ${hasText ? "read" : "reviewed"} **${doc.name}** for ${client?.name}.\n\n${doc.summary}\n\n${hasText ? "I have the full document text loaded and can answer specific questions about its contents, clauses, what fields to fill in, legal implications, or anything else you need." : "Ask me anything about this document and I'll help."}`
+    }]);
+    setActiveTab("ai-assistant");
+  }
+
+  // ── AI Chat ──────────────────────────────────────────────────
   async function sendAiMessage() {
     if (!aiInput.trim()) return;
     const userMsg = aiInput.trim();
     setAiInput("");
     setAiChat(prev => [...prev, { role: "user", content: userMsg }]);
     setAiLoading(true);
-    const context = `You are an AI legal assistant for a plaintiff personal injury law firm powered by Swan. Swan's mission is to make legal help accessible to the 92% of low-income households who can't afford it, by equipping PI firms with cutting-edge AI.
+
+    const docContext = activeDocContext
+      ? `\n\nThe user is querying a specific document: "${activeDocContext.name}" for client ${clients.find(c => c.id === activeDocContext.clientId)?.name}.${
+          activeDocContext.extractedText
+            ? `\n\nFULL DOCUMENT CONTENTS:\n${activeDocContext.extractedText.slice(0, 4000)}\n\nAnswer questions about this document specifically — explain clauses, what fields mean, what to fill in, legal implications, red flags, and how it affects the case. Reference specific sections from the document text.`
+            : `\nAI summary of this document: ${activeDocContext.summary}`
+        }`
+      : "";
+
+    const context = `You are an AI legal assistant for a plaintiff personal injury law firm powered by Swan. Swan's mission is to make legal help accessible to the 92% of low-income households who can't afford it.
 
 Active PI cases: ${clients.filter(c => c.status === "active").map(c => `${c.name} (${c.type}, ${c.stage} stage, est. value ${c.value})`).join("; ")}.
 Urgent deadlines: ${deadlines.filter(d => d.daysLeft <= 14).map(d => `${d.title} in ${d.daysLeft} days for ${clients.find(c => c.id === d.clientId)?.name}`).join("; ")}.
-
-Specialties: auto accidents, slip & fall, medical malpractice, workplace injuries, truck accidents. Be direct, actionable, and reference specific tort laws, statutes of limitations, and case strategy.`;
+Specialties: auto accidents, slip & fall, medical malpractice, workplace injuries, truck accidents. Be direct, actionable, and reference specific tort laws, statutes, and case strategy.${docContext}`;
 
     try {
       const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -97,45 +212,7 @@ Specialties: auto accidents, slip & fall, medical malpractice, workplace injurie
     setAiLoading(false);
   }
 
-  async function analyzeDocument(docId) {
-    setAnalyzing(docId);
-    const doc = uploadedDocs.find(d => d.id === docId);
-    const client = clients.find(c => c.id === doc.clientId);
-    try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": import.meta.env.VITE_ANTHROPIC_API_KEY,
-          "anthropic-version": "2023-06-01",
-          "anthropic-dangerous-direct-browser-access": "true"
-        },
-        body: JSON.stringify({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 1000,
-          messages: [{ role: "user", content: `You are a PI legal AI. Analyze this document for a plaintiff personal injury case. Provide 3-4 sentences covering: key facts, legal significance, liability indicators, and recommended next steps. Document: "${doc.name}", Type: "${doc.type}", Case: ${client?.name} - ${client?.type}. Be specific about legal strategy implications.` }]
-        })
-      });
-      const data = await res.json();
-      setUploadedDocs(prev => prev.map(d => d.id === docId ? { ...d, status: "analyzed", summary: data.content?.[0]?.text || "Analysis complete." } : d));
-    } catch {
-      setUploadedDocs(prev => prev.map(d => d.id === docId ? { ...d, status: "analyzed", summary: "Analysis failed. Please retry." } : d));
-    }
-    setAnalyzing(null);
-  }
-
-  function handleFileUpload(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    setUploadedDocs(prev => [...prev, {
-      id: Date.now(), clientId: uploadClientId, name: file.name,
-      type: "Uploaded Document", size: `${(file.size / 1024).toFixed(0)} KB`,
-      uploaded: new Date().toISOString().split("T")[0],
-      status: "pending", userUploaded: true, summary: null
-    }]);
-    e.target.value = "";
-  }
-
+  // ── Deadline / Client Add ────────────────────────────────────
   function addDeadline() {
     if (!newDeadline.title || !newDeadline.date) return;
     const daysLeft = Math.ceil((new Date(newDeadline.date) - new Date()) / (1000 * 60 * 60 * 24));
@@ -154,23 +231,24 @@ Specialties: auto accidents, slip & fall, medical malpractice, workplace injurie
     setShowAddClient(false);
   }
 
+  // ── Markdown Renderer ────────────────────────────────────────
   function renderMarkdown(text) {
     if (!text) return null;
     return text.split('\n').map((line, i) => {
-      if (line.startsWith('### ')) return <div key={i} style={{ fontWeight: 700, fontSize: 13, color: "#c8a96e", marginTop: 14, marginBottom: 4, fontFamily: FONT }}>{line.replace('### ', '')}</div>;
-      if (line.startsWith('## ')) return <div key={i} style={{ fontWeight: 700, fontSize: 14, color: "#e2e8f0", marginTop: 18, marginBottom: 6, borderBottom: "1px solid #1e2330", paddingBottom: 4, fontFamily: FONT }}>{line.replace('## ', '')}</div>;
-      if (line.startsWith('# ')) return <div key={i} style={{ fontWeight: 800, fontSize: 16, color: "#e2e8f0", marginTop: 20, marginBottom: 8, fontFamily: FONT }}>{line.replace('# ', '')}</div>;
+      if (line.startsWith('### ')) return <div key={i} style={{ fontWeight: 700, fontSize: 13, color: "#c8a96e", marginTop: 14, marginBottom: 4 }}>{line.replace('### ', '')}</div>;
+      if (line.startsWith('## ')) return <div key={i} style={{ fontWeight: 700, fontSize: 14, color: "#e2e8f0", marginTop: 18, marginBottom: 6, borderBottom: "1px solid #1e2330", paddingBottom: 4 }}>{line.replace('## ', '')}</div>;
+      if (line.startsWith('# ')) return <div key={i} style={{ fontWeight: 800, fontSize: 16, color: "#e2e8f0", marginTop: 20, marginBottom: 8 }}>{line.replace('# ', '')}</div>;
       if (line.startsWith('- ')) {
         const content = line.replace(/^- \*\*(.*?)\*\*/, '$1').replace(/^- /, '');
-        return <div key={i} style={{ display: "flex", gap: 8, marginBottom: 4, fontFamily: FONT }}><span style={{ color: "#c8a96e", flexShrink: 0 }}>·</span><span>{content.replace(/\*\*(.*?)\*\*/g, '$1')}</span></div>;
+        return <div key={i} style={{ display: "flex", gap: 8, marginBottom: 4 }}><span style={{ color: "#c8a96e", flexShrink: 0 }}>·</span><span>{content.replace(/\*\*(.*?)\*\*/g, '$1')}</span></div>;
       }
       if (line.startsWith('---')) return <div key={i} style={{ borderBottom: "1px solid #1e2330", margin: "12px 0" }} />;
       if (line.includes('**')) {
         const parts = line.split(/\*\*(.*?)\*\*/g);
-        return <div key={i} style={{ marginBottom: 4, fontFamily: FONT }}>{parts.map((p, j) => j % 2 === 1 ? <strong key={j} style={{ color: "#e2e8f0" }}>{p}</strong> : p)}</div>;
+        return <div key={i} style={{ marginBottom: 4 }}>{parts.map((p, j) => j % 2 === 1 ? <strong key={j} style={{ color: "#e2e8f0" }}>{p}</strong> : p)}</div>;
       }
       if (line.trim() === '') return <div key={i} style={{ height: 8 }} />;
-      return <div key={i} style={{ marginBottom: 4, color: "#cbd5e0", fontFamily: FONT, lineHeight: 1.6 }}>{line}</div>;
+      return <div key={i} style={{ marginBottom: 4, color: "#cbd5e0", lineHeight: 1.6 }}>{line}</div>;
     });
   }
 
@@ -215,6 +293,7 @@ Specialties: auto accidents, slip & fall, medical malpractice, workplace injurie
         @keyframes shimmer { 0% { background-position: 200%; } 100% { background-position: -200%; } }
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.65); display: flex; align-items: center; justify-content: center; z-index: 100; }
         .modal { background: #111318; border: 1px solid #2a3040; border-radius: 10px; padding: 28px; width: 440px; }
+        .doc-context-banner { background: rgba(200,169,110,0.07); border: 1px solid rgba(200,169,110,0.2); border-radius: 6px; padding: 10px 16px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
       `}</style>
 
       {/* Header */}
@@ -248,6 +327,9 @@ Specialties: auto accidents, slip & fall, medical malpractice, workplace injurie
         {tabs.map(t => (
           <button key={t} className={`tab-btn ${activeTab === t ? "active" : ""}`} onClick={() => setActiveTab(t)}>
             {tabIcons[t]} {tabLabels[t]}
+            {t === "ai-assistant" && activeDocContext && (
+              <span style={{ marginLeft: 6, background: "rgba(200,169,110,0.2)", color: "#c8a96e", borderRadius: 3, padding: "1px 5px", fontSize: 9 }}>DOC</span>
+            )}
           </button>
         ))}
       </div>
@@ -262,7 +344,6 @@ Specialties: auto accidents, slip & fall, medical malpractice, workplace injurie
               <div style={{ fontSize: 24, fontWeight: 800, color: "#e2e8f0", marginBottom: 4 }}>Case Overview</div>
               <div style={{ fontSize: 12, color: "#4a5568" }}>Plaintiff personal injury — all active matters</div>
             </div>
-
             <div className="grid-4" style={{ marginBottom: 24 }}>
               {[
                 { label: "Active Cases", val: activeCount, sub: `${clients.length} total clients`, color: "#c8a96e" },
@@ -277,7 +358,6 @@ Specialties: auto accidents, slip & fall, medical malpractice, workplace injurie
                 </div>
               ))}
             </div>
-
             <div className="grid-2" style={{ marginBottom: 16 }}>
               <div className="card">
                 <div style={{ fontSize: 10, color: "#4a5568", letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 600, marginBottom: 14 }}>Urgent Deadlines</div>
@@ -301,7 +381,6 @@ Specialties: auto accidents, slip & fall, medical malpractice, workplace injurie
                 })}
                 <button className="btn-outline" style={{ width: "100%", marginTop: 10 }} onClick={() => setActiveTab("deadlines")}>View All →</button>
               </div>
-
               <div className="card">
                 <div style={{ fontSize: 10, color: "#4a5568", letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 600, marginBottom: 14 }}>Case Pipeline</div>
                 {clients.filter(c => c.status !== "closed").map(c => (
@@ -318,7 +397,6 @@ Specialties: auto accidents, slip & fall, medical malpractice, workplace injurie
                 ))}
               </div>
             </div>
-
             <div className="card">
               <div style={{ fontSize: 10, color: "#4a5568", letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 600, marginBottom: 14 }}>Recent Document Analysis</div>
               <div className="grid-2">
@@ -353,7 +431,6 @@ Specialties: auto accidents, slip & fall, medical malpractice, workplace injurie
                 <button className="btn" onClick={() => setShowAddClient(true)}>+ New Case</button>
               </div>
             </div>
-
             {clients.map(c => (
               <div key={c.id} className={`case-row ${selectedClient === c.id ? "selected" : ""}`} onClick={() => setSelectedClient(selectedClient === c.id ? null : c.id)}>
                 <div className="row" style={{ justifyContent: "space-between" }}>
@@ -372,13 +449,12 @@ Specialties: auto accidents, slip & fall, medical malpractice, workplace injurie
                 </div>
               </div>
             ))}
-
             {selectedClient && (
               <div className="grid-2" style={{ marginTop: 16 }}>
                 <div className="card">
                   <div style={{ fontSize: 10, color: "#4a5568", letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 600, marginBottom: 14 }}>Case Deadlines</div>
                   {filteredDeadlines.length === 0
-                    ? <div style={{ fontSize: 12, color: "#4a5568" }}>No deadlines for this case.</div>
+                    ? <div style={{ fontSize: 12, color: "#4a5568" }}>No deadlines.</div>
                     : filteredDeadlines.map(d => {
                       const color = d.daysLeft <= 7 ? "#ef4444" : d.daysLeft <= 21 ? "#f59e0b" : "#22c55e";
                       return (
@@ -397,7 +473,7 @@ Specialties: auto accidents, slip & fall, medical malpractice, workplace injurie
                 <div className="card">
                   <div style={{ fontSize: 10, color: "#4a5568", letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 600, marginBottom: 14 }}>Case Documents</div>
                   {filteredDocs.length === 0
-                    ? <div style={{ fontSize: 12, color: "#4a5568" }}>No documents uploaded.</div>
+                    ? <div style={{ fontSize: 12, color: "#4a5568" }}>No documents.</div>
                     : filteredDocs.map(doc => (
                       <div key={doc.id} style={{ padding: "10px 0", borderBottom: "1px solid #1e2330" }}>
                         <div className="row" style={{ justifyContent: "space-between" }}>
@@ -423,7 +499,6 @@ Specialties: auto accidents, slip & fall, medical malpractice, workplace injurie
               </div>
               <button className="btn" onClick={() => setShowAddDeadline(true)}>+ Add Deadline</button>
             </div>
-
             {[
               { label: "🔴 CRITICAL — Due within 7 days", filter: d => d.daysLeft <= 7, color: "#ef4444" },
               { label: "🟡 HIGH — Due within 3 weeks", filter: d => d.daysLeft > 7 && d.daysLeft <= 21, color: "#f59e0b" },
@@ -469,14 +544,16 @@ Specialties: auto accidents, slip & fall, medical malpractice, workplace injurie
             <div className="row" style={{ justifyContent: "space-between", marginBottom: 28 }}>
               <div>
                 <div style={{ fontSize: 24, fontWeight: 800, color: "#e2e8f0", marginBottom: 4 }}>Document Analysis</div>
-                <div style={{ fontSize: 12, color: "#4a5568" }}>AI-powered case document review · {uploadedDocs.length} documents</div>
+                <div style={{ fontSize: 12, color: "#4a5568" }}>Upload PDFs or DOCX — AI reads and analyzes the actual content · {uploadedDocs.length} documents</div>
               </div>
               <div className="row" style={{ gap: 10 }}>
                 <select value={uploadClientId} onChange={e => setUploadClientId(+e.target.value)} style={{ width: 200 }}>
                   {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
-                <input type="file" ref={fileInputRef} onChange={handleFileUpload} style={{ display: "none" }} />
-                <button className="btn" onClick={() => fileInputRef.current.click()}>↑ Upload Document</button>
+                <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".pdf,.docx,.txt" style={{ display: "none" }} />
+                <button className="btn" onClick={() => fileInputRef.current.click()} disabled={extractingId !== null}>
+                  {extractingId !== null ? "Reading..." : "↑ Upload Document"}
+                </button>
               </div>
             </div>
 
@@ -489,6 +566,7 @@ Specialties: auto accidents, slip & fall, medical malpractice, workplace injurie
             {uploadedDocs.map(doc => {
               const client = clients.find(c => c.id === doc.clientId);
               const isAnalyzing = analyzing === doc.id;
+              const hasText = !!doc.extractedText;
               return (
                 <div key={doc.id} className="doc-row">
                   <div className="row" style={{ justifyContent: "space-between", marginBottom: doc.summary ? 12 : 0 }}>
@@ -498,14 +576,26 @@ Specialties: auto accidents, slip & fall, medical malpractice, workplace injurie
                         <span className="tag" style={{ background: doc.status === "analyzed" ? "#22c55e22" : "#f59e0b22", color: doc.status === "analyzed" ? "#22c55e" : "#f59e0b", flexShrink: 0 }}>
                           {doc.status === "analyzed" ? "✓ Analyzed" : "Pending"}
                         </span>
+                        {hasText && (
+                          <span className="tag" style={{ background: "rgba(99,102,241,0.15)", color: "#818cf8", flexShrink: 0 }}>
+                            ✓ Text extracted
+                          </span>
+                        )}
                       </div>
                       <div style={{ fontSize: 11, color: "#4a5568" }}>{doc.type} · {doc.size} · {client?.name} · {doc.uploaded}</div>
                     </div>
-                    {doc.status === "pending" && doc.userUploaded && (
-                      <button className="btn" disabled={isAnalyzing} onClick={() => analyzeDocument(doc.id)} style={{ marginLeft: 12, flexShrink: 0 }}>
-                        {isAnalyzing ? "Analyzing..." : "✦ AI Analyze"}
-                      </button>
-                    )}
+                    <div className="row" style={{ gap: 8, flexShrink: 0, marginLeft: 12 }}>
+                      {doc.status === "pending" && doc.userUploaded && (
+                        <button className="btn" disabled={isAnalyzing} onClick={() => analyzeDocument(doc.id)}>
+                          {isAnalyzing ? "Analyzing..." : "✦ AI Analyze"}
+                        </button>
+                      )}
+                      {doc.status === "analyzed" && (
+                        <button className="btn-outline" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => openDocInChat(doc)}>
+                          ✦ Ask AI →
+                        </button>
+                      )}
+                    </div>
                   </div>
                   {isAnalyzing && (
                     <div style={{ marginTop: 10 }}>
@@ -516,7 +606,7 @@ Specialties: auto accidents, slip & fall, medical malpractice, workplace injurie
                   )}
                   {doc.summary && !isAnalyzing && (
                     <div style={{ background: "#0d0f15", border: "1px solid #1e2330", borderRadius: 4, padding: "12px 16px", fontSize: 12, color: "#94a3b8", lineHeight: 1.7 }}>
-                      <div style={{ color: "#c8a96e", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", marginBottom: 8 }}>✦ AI CASE ANALYSIS</div>
+                      <div style={{ color: "#c8a96e", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", marginBottom: 8 }}>✦ AI CASE ANALYSIS {hasText ? "· based on actual document contents" : ""}</div>
                       {renderMarkdown(doc.summary)}
                     </div>
                   )}
@@ -534,18 +624,42 @@ Specialties: auto accidents, slip & fall, medical malpractice, workplace injurie
               <div style={{ fontSize: 12, color: "#4a5568" }}>Case-aware PI law intelligence · powered by Claude</div>
             </div>
 
+            {/* Active document context banner */}
+            {activeDocContext && (
+              <div className="doc-context-banner">
+                <div style={{ fontSize: 11, color: "#c8a96e" }}>
+                  ✦ Querying document: <strong>{activeDocContext.name}</strong>
+                  <span style={{ color: "#4a5568", marginLeft: 8 }}>· {clients.find(c => c.id === activeDocContext.clientId)?.name}</span>
+                  {activeDocContext.extractedText && <span style={{ color: "#818cf8", marginLeft: 8 }}>· full text loaded</span>}
+                </div>
+                <button className="btn-ghost" style={{ fontSize: 10, padding: "3px 10px" }} onClick={() => { setActiveDocContext(null); setAiChat([]); }}>
+                  ✕ Exit doc mode
+                </button>
+              </div>
+            )}
+
+            {/* Suggested prompts — change based on doc context */}
             {aiChat.length === 0 && (
               <div style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 10, color: "#4a5568", letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 600, marginBottom: 12 }}>Suggested Queries</div>
+                <div style={{ fontSize: 10, color: "#4a5568", letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: 600, marginBottom: 12 }}>
+                  {activeDocContext ? "Suggested Document Questions" : "Suggested Queries"}
+                </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {[
+                  {(activeDocContext ? [
+                    "What does this document mean for our case?",
+                    "Are there any red flags or clauses I should worry about?",
+                    "What fields do I need to fill in?",
+                    "Summarize this in plain English",
+                    "What are my client's obligations under this?",
+                    "Is this favorable or unfavorable to our client?",
+                  ] : [
                     "What's the statute of limitations for auto accidents?",
                     "How do I maximize a soft tissue injury settlement?",
                     "Expert witnesses needed for medical malpractice?",
                     "Best strategies for truck accident cases",
                     "How to calculate pain and suffering damages",
                     "Strongest arguments for Marcus Williams' case",
-                  ].map(q => (
+                  ]).map(q => (
                     <button key={q} onClick={() => setAiInput(q)}
                       style={{ background: "#111318", border: "1px solid #1e2330", borderRadius: 4, padding: "8px 14px", fontSize: 11, color: "#64748b", cursor: "pointer", fontFamily: FONT, transition: "all 0.2s", fontWeight: 500 }}
                       onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(200,169,110,0.3)"; e.currentTarget.style.color = "#c8a96e"; }}
@@ -563,7 +677,11 @@ Specialties: auto accidents, slip & fall, medical malpractice, workplace injurie
                   <div style={{ textAlign: "center", padding: "56px 20px" }}>
                     <div style={{ fontSize: 24, marginBottom: 16, color: "#c8a96e" }}>✦</div>
                     <div style={{ fontSize: 14, fontWeight: 700, color: "#e2e8f0", marginBottom: 8 }}>Your PI Law AI Assistant</div>
-                    <div style={{ fontSize: 12, color: "#4a5568", lineHeight: 1.8 }}>Ask about case strategy, settlements, statutes of limitations,<br />expert witnesses, or any of your active cases.</div>
+                    <div style={{ fontSize: 12, color: "#4a5568", lineHeight: 1.8 }}>
+                      {activeDocContext
+                        ? `Ready to answer questions about ${activeDocContext.name}. Ask anything about its contents, clauses, or legal implications.`
+                        : "Ask about case strategy, settlements, statutes of limitations, expert witnesses, or any of your active cases."}
+                    </div>
                   </div>
                 )}
                 {aiChat.map((msg, i) => (
@@ -591,7 +709,13 @@ Specialties: auto accidents, slip & fall, medical malpractice, workplace injurie
                 <div ref={chatEndRef} />
               </div>
               <div style={{ borderTop: "1px solid #1e2330", paddingTop: 16, display: "flex", gap: 10 }}>
-                <input value={aiInput} onChange={e => setAiInput(e.target.value)} placeholder="Ask about case strategy, settlements, statutes, damages..." onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendAiMessage()} style={{ flex: 1 }} />
+                <input
+                  value={aiInput}
+                  onChange={e => setAiInput(e.target.value)}
+                  placeholder={activeDocContext ? `Ask about ${activeDocContext.name}...` : "Ask about case strategy, settlements, statutes, damages..."}
+                  onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendAiMessage()}
+                  style={{ flex: 1 }}
+                />
                 <button className="btn" onClick={sendAiMessage} disabled={aiLoading || !aiInput.trim()}>Send</button>
               </div>
             </div>
