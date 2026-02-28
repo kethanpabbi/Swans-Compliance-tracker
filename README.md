@@ -1,4 +1,4 @@
-# 🦢 Swan Compliance Tracker
+# Legal Compliance Tracker (Swan Project)
 
 > **Legal Intelligence Platform** — AI-powered compliance management for legal teams.
 
@@ -225,10 +225,4 @@ Claude responds with regulation-specific guidance, citations, and actionable fla
 
 ---
 
-## 📄 License
-
-MIT © Swan Legal Technologies
-
----
-
-*Built with [Claude AI](https://anthropic.com) · Part of the Swan Legal Platform*
+*Built with [Claude AI](https://anthropic.com) 
