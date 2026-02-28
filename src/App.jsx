@@ -31,6 +31,7 @@ const MONO = "Arial, sans-serif";
 
 export default function SwanComplianceTracker() {
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [uploadClientId, setUploadClientId] = useState(1);
   const [selectedClient, setSelectedClient] = useState(null);
   const [aiChat, setAiChat] = useState([]);
   const [aiInput, setAiInput] = useState("");
@@ -90,7 +91,12 @@ export default function SwanComplianceTracker() {
     try {
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": import.meta.env.VITE_ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true"
+        },
         body: JSON.stringify({
           model: "claude-haiku-4-5-20251001",
           max_tokens: 1000,
@@ -110,12 +116,13 @@ export default function SwanComplianceTracker() {
     if (!file) return;
     setUploadedDocs(prev => [...prev, {
       id: Date.now(),
-      clientId: selectedClient || 1,
+      clientId: uploadClientId,
       name: file.name,
       type: "Uploaded Document",
       size: `${(file.size / 1024).toFixed(0)} KB`,
       uploaded: new Date().toISOString().split("T")[0],
       status: "pending",
+      userUploaded: true,
       summary: null
     }]);
   }
@@ -131,6 +138,34 @@ export default function SwanComplianceTracker() {
   const tabs = ["dashboard", "clients", "deadlines", "documents", "ai-research"];
   const tabLabels = { dashboard: "Dashboard", clients: "Clients & Matters", deadlines: "Deadlines", documents: "Documents", "ai-research": "AI Research" };
   const tabIcons = { dashboard: "⬡", clients: "◈", deadlines: "◷", documents: "◻", "ai-research": "✦" };
+
+  function renderMarkdown(text) {
+    return text
+      .split('\n')
+      .map((line, i) => {
+        // Headings
+        if (line.startsWith('### ')) return <div key={i} style={{ fontWeight: 700, fontSize: 13, color: "#c8a96e", marginTop: 14, marginBottom: 4 }}>{line.replace('### ', '')}</div>;
+        if (line.startsWith('## ')) return <div key={i} style={{ fontWeight: 700, fontSize: 14, color: "#e2e8f0", marginTop: 18, marginBottom: 6, borderBottom: "1px solid #1e2330", paddingBottom: 4 }}>{line.replace('## ', '')}</div>;
+        if (line.startsWith('# ')) return <div key={i} style={{ fontWeight: 800, fontSize: 16, color: "#e2e8f0", marginTop: 20, marginBottom: 8 }}>{line.replace('# ', '')}</div>;
+        // Bullet points
+        if (line.startsWith('- **') || line.startsWith('- ')) {
+          const content = line.replace(/^- \*\*(.*?)\*\*/, (_, m) => m).replace(/^- /, '');
+          const isBold = line.startsWith('- **');
+          return <div key={i} style={{ display: "flex", gap: 8, marginBottom: 3 }}><span style={{ color: "#c8a96e", flexShrink: 0 }}>·</span><span style={{ fontWeight: isBold ? 600 : 400 }}>{content.replace(/\*\*(.*?)\*\*/g, '$1')}</span></div>;
+        }
+        // Horizontal rule
+        if (line.startsWith('---')) return <div key={i} style={{ borderBottom: "1px solid #1e2330", margin: "12px 0" }} />;
+        // Bold inline
+        if (line.includes('**')) {
+          const parts = line.split(/\*\*(.*?)\*\*/g);
+          return <div key={i} style={{ marginBottom: 3 }}>{parts.map((p, j) => j % 2 === 1 ? <strong key={j} style={{ color: "#e2e8f0" }}>{p}</strong> : p)}</div>;
+        }
+        // Empty line
+        if (line.trim() === '') return <div key={i} style={{ height: 6 }} />;
+        // Normal line
+        return <div key={i} style={{ marginBottom: 3, color: "#cbd5e0" }}>{line}</div>;
+      });
+    }
 
   return (
     <div style={{ fontFamily: MONO, background: "#0a0c10", minHeight: "100vh", color: "#e2e8f0" }}>
@@ -515,7 +550,14 @@ export default function SwanComplianceTracker() {
                 <div className="page-title" style={{ marginBottom: 4 }}>Document Analysis</div>
                 <div style={{ fontSize: 11, color: "#4a5568", fontFamily: MONO }}>AI-powered compliance review · {uploadedDocs.length} documents</div>
               </div>
-              <div>
+              <div className="row" style={{ gap: 10 }}>
+                <select
+                  value={uploadClientId}
+                  onChange={e => setUploadClientId(+e.target.value)}
+                  style={{ width: 200 }}
+                >
+                  {CLIENTS.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
                 <input type="file" ref={fileInputRef} onChange={handleFileUpload} style={{ display: "none" }} />
                 <button className="btn" onClick={() => fileInputRef.current.click()}>↑ Upload Document</button>
               </div>
@@ -542,7 +584,7 @@ export default function SwanComplianceTracker() {
                       </div>
                       <div style={{ fontSize: 10, color: "#4a5568", fontFamily: MONO }}>{doc.type} · {doc.size} · {client?.name} · Uploaded {doc.uploaded}</div>
                     </div>
-                    {doc.status === "pending" && (
+                    {doc.status === "pending" && doc.userUploaded && (
                       <button className="btn" disabled={isAnalyzing} onClick={() => analyzeDocument(doc.id)} style={{ marginLeft: 12, flexShrink: 0 }}>
                         {isAnalyzing ? "Analyzing..." : "✦ AI Analyze"}
                       </button>
@@ -556,7 +598,7 @@ export default function SwanComplianceTracker() {
                   )}
                   {doc.summary && !isAnalyzing && (
                     <div style={{ background: "#0d0f15", border: "1px solid #1e2330", borderRadius: 4, padding: "10px 14px", fontSize: 11, color: "#94a3b8", lineHeight: 1.7, fontFamily: MONO }}>
-                      <span style={{ color: "#c8a96e", marginRight: 6 }}>✦ AI ANALYSIS:</span>{doc.summary}
+                      <span style={{ color: "#c8a96e", marginRight: 6 }}>✦ AI ANALYSIS:</span>{renderMarkdown(doc.summary)}
                     </div>
                   )}
                 </div>
@@ -610,7 +652,7 @@ export default function SwanComplianceTracker() {
                       : (
                         <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
                           <div style={{ width: 24, height: 24, background: "rgba(200,169,110,0.1)", border: "1px solid rgba(200,169,110,0.25)", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#c8a96e", flexShrink: 0 }}>✦</div>
-                          <div className="chat-bubble-ai">{msg.content}</div>
+                          <div className="chat-bubble-ai">{renderMarkdown(msg.content)}</div>
                         </div>
                       )}
                   </div>
