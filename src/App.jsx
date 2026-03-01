@@ -60,7 +60,7 @@ export default function SwanPITracker() {
   const [deadlines, setDeadlines] = useState(DEADLINES);
   const [clients, setClients] = useState(CLIENTS);
   const [newDeadline, setNewDeadline] = useState({ title: "", date: "", clientId: 1, type: "court" });
-  const [newClient, setNewClient] = useState({ name: "", type: "Auto Accident", attorney: "" });
+  const [newClient, setNewClient] = useState({ name: "", type: "Auto Accident", attorney: "", value: "" });
   const [uploadClientId, setUploadClientId] = useState(1);
   const [activeDocContext, setActiveDocContext] = useState(null);
   const [extractingId, setExtractingId] = useState(null);
@@ -187,8 +187,8 @@ Specialties: auto accidents, slip & fall, medical malpractice, workplace injurie
 
   function addClient() {
     if (!newClient.name) return;
-    setClients(prev => [...prev, { ...newClient, id: Date.now(), status: "active", stage: "Intake", intake: new Date().toISOString().split("T")[0], value: "TBD" }]);
-    setNewClient({ name: "", type: "Auto Accident", attorney: "" });
+    setClients(prev => [...prev, { ...newClient, id: Date.now(), status: "active", stage: "Intake", intake: new Date().toISOString().split("T")[0], value: newClient.value ? `$${newClient.value.replace(/[$,]/g, "")}` : "TBD" }]);
+    setNewClient({ name: "", type: "Auto Accident", attorney: "", value: "" });
     setShowAddClient(false);
   }
 
@@ -751,6 +751,7 @@ Specialties: auto accidents, slip & fall, medical malpractice, workplace injurie
                 </select>
               </div>
               <div><div style={labelStyle}>Assigned Attorney</div><input value={newClient.attorney} onChange={e => setNewClient(p => ({ ...p, attorney: e.target.value }))} placeholder="e.g. J. Rodriguez" /></div>
+              <div><div style={labelStyle}>Estimated Value (optional)</div><input value={newClient.value} onChange={e => setNewClient(p => ({ ...p, value: e.target.value }))} placeholder="e.g. 85000" type="number" min="0" /></div>
             </div>
             <div className="row" style={{ justifyContent: "flex-end", gap: 10, marginTop: 24 }}>
               <button className="btn-ghost" onClick={() => setShowAddClient(false)}>Cancel</button>
